@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - FMCPortal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8fafc;
+        }
+        .sidebar-bg {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            box-shadow: 2px 0 16px rgba(44, 62, 80, .06);
+        }
+        .sidebar-pill {
+            transition: background 0.2s, color 0.2s;
+        }
+        .sidebar-pill.active,
+        .sidebar-pill:hover {
+            background: linear-gradient(90deg, #ec4899 0%, #fbbf24 100%);
+            color: #fff !important;
+            box-shadow: 0 4px 16px rgba(236, 72, 153, 0.20);
+        }
+        .sidebar-pill .icon {
+            min-width: 22px;
+            margin-right: .8em;
+        }
+        .sidebar-bg .sidebar-pill {
+            color: #fff;
+            font-weight: 500;
+        }
+        .menu-avatar {
+            background: linear-gradient(135deg, #fbbf24 0%, #ec4899 100%);
+        }
+        .header-avatar {
+            background: linear-gradient(135deg, #ec4899 0%, #fbbf24 100%);
+        }
+        .menu-avatar,
+        .header-avatar {
+            transition: box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(236, 72, 153, 0.13);
+        }
+        .mobile-sidebar {
+            transition: left 0.3s;
+        }
+        .mobile-sidebar.closed {
+            left: -100%;
+        }
+        .mobile-sidebar.open {
+            left: 0;
+        }
+        .sidebar-bg,
+        #mobileSidebar {
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+        nav.flex-1 {
+            flex: none;
+        }
+        .profile-dropdown-menu {
+            z-index: 60;
+            right: 0;
+            top: 100%;
+            min-width: 160px;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 24px rgba(44, 62, 80, .10);
+            overflow: hidden;
+            margin-top: 8px;
+            display: none;
+            position: absolute;
+        }
+        .profile-dropdown-menu.show {
+            display: block;
+        }
+        .profile-dropdown-item {
+            color: #374151;
+            padding: 0.75rem 1.25rem;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.18s;
+        }
+        .profile-dropdown-item:hover {
+            background: #fbbf24;
+            color: #fff;
+        }
+        @media (max-width: 1024px) {
+            .sidebar-bg {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        @media (min-width: 1025px) {
+            .main-content {
+                margin-left: 16rem;
+            }
+        }
+        @media (max-width: 1024px) {
+            .mobile-header-title {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                pointer-events: none;
+                font-weight: 700;
+                font-size: 1.25rem;
+                color: #111;
+                z-index: 1;
+            }
+        }
+        @media (min-width: 1025px) {
+            .desktop-header-center {
+                position: absolute;
+                left: 50%;
+                top: 0;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                transform: translateX(-50%);
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #111;
+                letter-spacing: 0.02em;
+                z-index: 20;
+            }
+        }
+        .fmcp-link {
+            color: #111;
+            font-weight: 700;
+            text-decoration: none;
+            transition: opacity 0.15s;
+        }
+        .fmcp-link:hover {
+            opacity: 0.83;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="relative min-h-screen">
+    {% set auth_routes = ['/login', '/signup', '/password_reset', '/password_reset_confirm'] %}
+    {% if request.path not in auth_routes %}
+    <!-- Desktop Sidebar -->
+    <aside class="sidebar-bg fixed top-0 left-0 h-full w-64 px-6 py-7 flex flex-col z-40 hidden lg:flex">
+        <div class="mb-8 flex items-center gap-3">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-10 w-10 rounded-lg shadow" />
+            <a href="{{ url_for('index') }}" class="font-bold text-lg text-white drop-shadow fmcp-link" style="color:#fff;">FMCPortal</a>
+        </div>
+        <div class="mb-8 flex flex-col items-center">
+            <div class="w-16 h-16 rounded-full menu-avatar flex items-center justify-center text-white text-2xl font-bold mb-2 shadow">
+                {{ session.get('username', 'User')|first|upper }}
+            </div>
+            <div class="text-base text-white font-semibold">{{ session.get('username', 'User') }}</div>
+            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', 'Unknown') }} - {{ session.get('domain', 'Unknown') }}</div>
+        </div>
+        <nav class="flex-1 flex flex-col gap-2">
+            <a href="{{ url_for('index') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('index') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                </span>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('add') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('add') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </span>
+                <span>Add Data</span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full text-[#ef4444] hover:text-white {{ 'active' if request.path == url_for('logout') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                </span>
+                <span>Logout</span>
+            </a>
+        </nav>
+    </aside>
+    <!-- Mobile Sidebar -->
+    <div id="mobileSidebar" class="mobile-sidebar closed fixed top-0 left-0 h-full w-64 px-6 py-7 z-50 flex flex-col lg:hidden sidebar-bg">
+        <div class="mb-8 flex items-center gap-3">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-10 w-10 rounded-lg shadow" />
+            <a href="{{ url_for('index') }}" class="font-bold text-lg text-white drop-shadow fmcp-link" style="color:#fff;">FMCPortal</a>
+        </div>
+        <div class="mb-8 flex flex-col items-center">
+            <div class="w-16 h-16 rounded-full menu-avatar flex items-center justify-center text-white text-2xl font-bold mb-2 shadow">
+                {{ session.get('username', 'User')|first|upper }}
+            </div>
+            <div class="text-base text-white font-semibold">{{ session.get('username', 'User') }}</div>
+            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', 'Unknown') }} - {{ session.get('domain', 'Unknown') }}</div>
+        </div>
+        <nav class="flex-1 flex flex-col gap-2">
+            <a href="{{ url_for('index') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('index') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                </span>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('add') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('add') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </span>
+                <span>Add Data</span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full text-[#ef4444] hover:text-white {{ 'active' if request.path == url_for('logout') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                </span>
+                <span>Logout</span>
+            </a>
+        </nav>
+    </div>
+    <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black bg-opacity-30 z-40 hidden"></div>
+    <!-- Header -->
+    <header class="fixed left-0 lg:left-64 right-0 top-0 h-16 bg-white shadow flex items-center justify-between px-4 z-30">
+        <button id="mobileSidebarToggle" class="flex lg:hidden items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-fuchsia-400" aria-label="Open sidebar">
+            <svg class="w-7 h-7 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+        <div class="desktop-header-center hidden lg:flex">
+            <a href="/" class="fmcp-link flex items-center gap-2 text-2xl font-extrabold tracking-wide hover:underline">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-8 w-8 rounded shadow" />
+                FMCPortal
+            </a>
+        </div>
+        <div class="mobile-header-title lg:hidden font-extrabold">
+            <a href="/" class="fmcp-link flex items-center gap-2 text-xl font-extrabold tracking-wide">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-7 w-7 rounded shadow" />
+                FMCPortal
+            </a>
+        </div>
+        <div class="relative flex items-center ml-auto">
+            <button id="profileDropdownBtn" type="button" class="header-avatar flex items-center justify-center w-11 h-11 rounded-full focus:outline-none border-2 border-fuchsia-200 shadow transition" aria-haspopup="true" aria-expanded="false">
+                <span class="text-lg font-bold text-white">
+                    {{ session.get('username', 'U')|first|upper }}
+                </span>
+            </button>
+            <div id="profileDropdownMenu" class="profile-dropdown-menu absolute right-0 mt-2">
+                <div class="px-4 py-2 text-base text-gray-700 font-semibold border-b">{{ session.get('username', 'User') }}</div>
+                <a href="{{ url_for('logout') }}" class="profile-dropdown-item w-full text-left block">Logout</a>
+            </div>
+        </div>
+    </header>
+    <main class="main-content pt-20 lg:ml-64 px-4">
+    {% else %}
+    <main class="min-h-screen">
+    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg shadow-md" role="alert">
+                    <p>{{ message }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const mobileSidebarToggle = document.getElementById('mobileSidebarToggle');
+            const mobileSidebar = document.getElementById('mobileSidebar');
+            const mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
+            if (mobileSidebarToggle && mobileSidebar && mobileSidebarOverlay) {
+                mobileSidebarToggle.addEventListener('click', function () {
+                    mobileSidebar.classList.toggle('open');
+                    mobileSidebar.classList.toggle('closed');
+                    mobileSidebarOverlay.classList.toggle('hidden');
+                });
+                mobileSidebarOverlay.addEventListener('click', function () {
+                    mobileSidebar.classList.add('closed');
+                    mobileSidebar.classList.remove('open');
+                    mobileSidebarOverlay.classList.add('hidden');
+                });
+            }
+            const profileDropdownBtn = document.getElementById('profileDropdownBtn');
+            const profileDropdownMenu = document.getElementById('profileDropdownMenu');
+            let profileDropdownOpen = false;
+            if (profileDropdownBtn && profileDropdownMenu) {
+                profileDropdownBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    profileDropdownOpen = !profileDropdownOpen;
+                    profileDropdownMenu.classList.toggle('show', profileDropdownOpen);
+                });
+                document.addEventListener('click', function (e) {
+                    if (profileDropdownOpen && !profileDropdownBtn.contains(e.target) && !profileDropdownMenu.contains(e.target)) {
+                        profileDropdownOpen = false;
+                        profileDropdownMenu.classList.remove('show');
+                    }
+                });
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
