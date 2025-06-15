@@ -74,7 +74,7 @@ def validate_email(email):
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(email_regex, email) is not None
 
-# Database Models
+# Database Models app
 class FMCInformation(db.Model):
     __tablename__ = 'fmc_information'
     id = db.Column(db.Integer, primary_key=True)
