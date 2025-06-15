@@ -21,7 +21,7 @@ app = Flask(__name__)
 app.config['DEBUG'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(16))
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(24))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 # Initialize database
@@ -43,7 +43,7 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY]):
     raise ValueError("SUPABASE_URL, SUPABASE_KEY, and SUPABASE_SERVICE_KEY must be set")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Helper functions
 def login_required(f):
@@ -74,7 +74,7 @@ def validate_email(email):
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(email_regex, email) is not None
 
-# Database Models app
+# Database Models
 class FMCInformation(db.Model):
     __tablename__ = 'fmc_information'
     id = db.Column(db.Integer, primary_key=True)
@@ -364,82 +364,23 @@ def index():
         user_role = session.get('role')
         user_category = session.get('category')
         user_domain = session.get('domain')
+        username = session.get('username')
 
         # Log user info for debugging
-        logger.debug(f"User: {session.get('username')}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
+        logger.debug(f"User: {username}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
 
-        # Base query for FMC entries
-        query = FMCInformation.query
-        if user_role != 'master':
-            query = query.filter_by(category=user_category, domain=user_domain)
-        entries = query.all()
-        total_entries = len(entries)
-
-        # Category-wise counts
-        longhaul_count = db.session.query(
-            db.func.count(FMCInformation.id)
-        ).filter(FMCInformation.category == 'Longhaul')
-        if user_role != 'master':
-            longhaul_count = longhaul_count.filter_by(category=user_category, domain=user_domain)
-        longhaul_count = longhaul_count.scalar() or 0
-
-        gpon_fmc_count = db.session.query(
-            db.func.count(FMCInformation.id)
-        ).filter(FMCInformation.category == 'GPON_FMC')
-        if user_role != 'master':
-            gpon_fmc_count = gpon_fmc_count.filter_by(category=user_category, domain=user_domain)
-        gpon_fmc_count = gpon_fmc_count.scalar() or 0
-
-        logger.debug(f"Longhaul Count: {longhaul_count}, GPON_FMC Count: {gpon_fmc_count}")
-
-        # Total cable used (meters)
-        total_cable_used = db.session.query(
-            db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)
-        )
-        if user_role != 'master':
-            total_cable_used = total_cable_used.filter_by(category=user_category, domain=user_domain)
-        total_cable_used = total_cable_used.scalar()
-
-        # Total joints used
-        total_joints = db.session.query(
-            db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)
-        )
-        if user_role != 'master':
-            total_joints = total_joints.filter_by(category=user_category, domain=user_domain)
-        total_joints = total_joints.scalar()
-
-        # Pipe usage (meters)
-        total_pipe_used = db.session.query(
-            db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)
-        ).join(FMCInformation)
-        if user_role != 'master':
-            total_pipe_used = total_pipe_used.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
-        total_pipe_used = total_pipe_used.scalar()
-
-        return render_template(
-            'index.html',
-            entries=entries,
-            total_entries=total_entries,
-            longhaul_count=longhaul_count,
-            gpon_fmc_count=gpon_fmc_count,
-            total_cable_used=total_cable_used,
-            total_joints=total_joints,
-            total_pipe_used=total_pipe_used,
-            user_role=user_role,
-            user_category=user_category,
-            user_domain=user_domain
-        )
+        # Render minimal template
+        return render_template('index.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
     except Exception as e:
         logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
         return redirect(url_for('index'))
 
-
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
-    if request.method == 'POST':
-        try:
+    try:
+        if request.method == 'POST':
             username = session.get('username', 'unknown_user')
             category = request.form.get('category')
             domain = request.form.get('domain')
@@ -477,6 +418,7 @@ def add():
                 updated_at=datetime.utcnow()
             )
             db.session.add(fmc)
+            db.session.flush()  # Ensure fmc.id is available
 
             # Joint Types
             joint_types = request.form.getlist('joint_type[]')
@@ -510,14 +452,14 @@ def add():
             db.session.commit()
             flash('Data added successfully!', 'success')
             return redirect(url_for('index'))
-        except ValueError as e:
-            db.session.rollback()
-            flash(str(e), 'error')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error adding data: {str(e)}", 'error')
-
-    return render_template('add.html')
+        else:
+            logger.debug("Rendering add.html for GET request")
+            return render_template('add.html')
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in add route: {str(e)}")
+        flash(f"Error adding data: {str(e)}", 'error')
+        return render_template('add.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
