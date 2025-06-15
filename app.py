@@ -45,6 +45,19 @@ if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY]):
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Valid domains
+VALID_CATEGORIES = ['Longhaul', 'GPON_FMC']
+VALID_DOMAINS = {
+    'Longhaul': [
+        'FMC Taxila', 'FMC Fateh Jang', 'FMC Rawalpindi', 'FMC Murree',
+        'FMC Gujar Khan', 'FMC Chakwal', 'FMC Talagang', 'FMC Jhelum', 'FMC PD Khan'
+    ],
+    'GPON_FMC': [
+        'FMC Attock GPON', 'FMC Wah GPON', 'FMC Taxila GPON', 'FMC Murree GPON',
+        'FMC Gujar Khan GPON', 'FMC Chakwal GPON', 'FMC Jhelum GPON'
+    ]
+}
+
 # Helper functions
 def login_required(f):
     @wraps(f)
@@ -52,6 +65,16 @@ def login_required(f):
         if 'user_id' not in session:
             flash('Please log in to access this page')
             return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def master_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if session.get('role') != 'master':
+            flash('Access restricted to master users')
+            return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -73,6 +96,23 @@ def sanitize_text(value):
 def validate_email(email):
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(email_regex, email) is not None
+
+def apply_data_filter(query):
+    user_role = session.get('role')
+    user_category = session.get('category')
+    user_domain = session.get('domain')
+
+    if user_role == 'master':
+        if user_category == 'All' and user_domain == 'All':
+            return query
+        elif user_category == 'Longhaul' and user_domain == 'All':
+            return query.filter(FMCInformation.category == 'Longhaul', FMCInformation.domain.in_(VALID_DOMAINS['Longhaul']))
+        elif user_category == 'GPON_FMC' and user_domain == 'All':
+            return query.filter(FMCInformation.category == 'GPON_FMC', FMCInformation.domain.in_(VALID_DOMAINS['GPON_FMC']))
+        else:
+            return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+    else:
+        return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
 
 # Database Models
 class FMCInformation(db.Model):
@@ -125,6 +165,7 @@ def signup():
         confirm_password = request.form.get('confirm_password', '').strip()
         category = request.form.get('category', '').strip()
         domain = request.form.get('domain', '').strip()
+        role = request.form.get('role', 'user').strip()
 
         if not all([username, email, password, confirm_password, category, domain]):
             flash('All fields are required')
@@ -138,17 +179,11 @@ def signup():
             flash('Passwords do not match')
             return render_template('signup.html')
 
-        valid_categories = ['Longhaul', 'GPON_FMC']
-        valid_domains = {
-            'Longhaul': [
-                'FMC Taxila', 'FMC Fateh Jang', 'FMC Rawalpindi', 'FMC Murree',
-                'FMC Gujar Khan', 'FMC Chakwal', 'FMC Talagang', 'FMC Jhelum', 'FMC PD Khan'
-            ],
-            'GPON_FMC': [
-                'FMC Attock GPON', 'FMC Wah GPON', 'FMC Taxila GPON', 'FMC Murree GPON', 'FMC Gujar Khan GPON', 'FMC Chakwal GPON', 'FMC J GPTON'
-            ]
-        }
-        if category not in valid_categories or domain not in valid_domains[category]:
+        if role not in ['user', 'master']:
+            flash('Invalid role')
+            return render_template('signup.html')
+
+        if category not in VALID_CATEGORIES + ['All'] or (category != 'All' and domain not in VALID_DOMAINS.get(category, [])) and domain != 'All':
             flash('Invalid category or domain')
             return render_template('signup.html')
 
@@ -175,7 +210,7 @@ def signup():
                         "category": category,
                         "domain": domain,
                         "region": "RTR",
-                        "role": "user"
+                        "role": role
                     }
                 }
             })
@@ -188,7 +223,7 @@ def signup():
                     'region': 'RTR',
                     'category': category,
                     'domain': domain,
-                    'role': 'user'
+                    'role': role
                 }).execute()
                 flash('Signup successful! Please check your email to verify your account.')
                 return redirect(url_for('login'))
@@ -366,11 +401,34 @@ def index():
         user_domain = session.get('domain')
         username = session.get('username')
 
-        # Log user info for debugging
         logger.debug(f"User: {username}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
 
-        # Render minimal template
-        return render_template('index.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
+        # Base query for FMC entries
+        query = FMCInformation.query
+        query = apply_data_filter(query)
+        entries = query.order_by(FMCInformation.created_at.desc()).limit(5).all()
+
+        # Summary statistics
+        total_entries = apply_data_filter(FMCInformation.query).count()
+        longhaul_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'Longhaul')).count()
+        gpon_fmc_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'GPON_FMC')).count()
+        total_cable_used = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
+        total_joints = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
+        total_pipe_used = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation)).with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+
+        return render_template(
+            'index.html',
+            entries=entries,
+            total_entries=total_entries,
+            longhaul_count=longhaul_count,
+            gpon_fmc_count=gpon_fmc_count,
+            total_cable_used=total_cable_used,
+            total_joints=total_joints,
+            total_pipe_used=total_pipe_used,
+            user_role=user_role,
+            user_category=user_category,
+            user_domain=user_domain
+        )
     except Exception as e:
         logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
@@ -380,8 +438,12 @@ def index():
 @login_required
 def add():
     try:
+        user_role = session.get('role')
+        user_category = session.get('category')
+        user_domain = session.get('domain')
+        username = session.get('username', 'unknown_user')
+
         if request.method == 'POST':
-            username = session.get('username', 'unknown_user')
             category = request.form.get('category')
             domain = request.form.get('domain')
             cable_cut_noc_id = request.form.get('cable_cut_noc_id') or None
@@ -390,19 +452,12 @@ def add():
             cable_capacity = request.form.get('cable_capacity') or None
             no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
 
-            valid_categories = ['Longhaul', 'GPON_FMC']
-            valid_domains = {
-                'Longhaul': [
-                    'FMC Taxila', 'FMC Fateh Jang', 'FMC Rawalpindi', 'FMC Murree',
-                    'FMC Gujar Khan', 'FMC Chakwal', 'FMC Talagang', 'FMC Jhelum', 'FMC PD Khan'
-                ],
-                'GPON_FMC': [
-                    'FMC Attock GPON', 'FMC Wah GPON', 'FMC Taxila GPON', 'FMC Murree GPON',
-                    'FMC Gujar Khan GPON', 'FMC Chakwal GPON', 'FMC Jhelum GPON'
-                ]
-            }
-            if category not in valid_categories or domain not in valid_domains[category]:
-                raise ValueError("Invalid category or domain")
+            if user_role != 'master':
+                if category != user_category or domain != user_domain:
+                    raise ValueError("You can only add data for your assigned category and domain")
+            else:
+                if category not in VALID_CATEGORIES or (domain not in VALID_DOMAINS[category] and domain != 'All'):
+                    raise ValueError("Invalid category or domain")
 
             fmc = FMCInformation(
                 region='RTR',
@@ -418,7 +473,7 @@ def add():
                 updated_at=datetime.utcnow()
             )
             db.session.add(fmc)
-            db.session.flush()  # Ensure fmc.id is available
+            db.session.flush()
 
             # Joint Types
             joint_types = request.form.getlist('joint_type[]')
@@ -451,15 +506,150 @@ def add():
 
             db.session.commit()
             flash('Data added successfully!', 'success')
-            return redirect(url_for('index'))
+            return redirect(url_for('view_fmc'))
         else:
             logger.debug("Rendering add.html for GET request")
-            return render_template('add.html')
+            return render_template('add.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in add route: {str(e)}")
         flash(f"Error adding data: {str(e)}", 'error')
-        return render_template('add.html')
+        return render_template('add.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
 
+@app.route('/view_fmc', methods=['GET'])
+@login_required
+def view_fmc():
+    try:
+        page = request.args.get('page', 1, type=int)
+        search = request.args.get('search', '').strip()
+
+        query = FMCInformation.query
+        query = apply_data_filter(query)
+
+        if search:
+            query = query.filter(
+                db.or_(
+                    FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'),
+                    FMCInformation.domain.ilike(f'%{search}%')
+                )
+            )
+
+        per_page = 10
+        pagination = query.order_by(FMCInformation.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+        return render_template(
+            'view_fmc.html',
+            fmcs=pagination,
+            search=search,
+            user_role=session.get('role')
+        )
+    except Exception as e:
+        logger.error(f"Error in view_fmc route: {str(e)}")
+        flash(f"Error: {str(e)}")
+        return redirect(url_for('index'))
+
+@app.route('/edit/<int:id>', methods=['GET', 'POST'])
+@master_required
+def edit(id):
+    try:
+        fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        if request.method == 'POST':
+            fmc.category = request.form.get('category')
+            fmc.domain = request.form.get('domain')
+            fmc.cable_cut_noc_id = request.form.get('cable_cut_noc_id') or None
+            fmc.cable_used_meters = safe_float(request.form.get('cable_used_meters'), 'cable_used_meters') if request.form.get('cable_used_meters') else None
+            fmc.cable_type = request.form.get('cable_type') or None
+            fmc.cable_capacity = request.form.get('cable_capacity') or None
+            fmc.no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
+            fmc.updated_by = session.get('username', 'unknown_user')
+            fmc.updated_at = datetime.utcnow()
+
+            # Update Joint Types
+            db.session.query(JointType).filter_by(fmc_id=fmc.id).delete()
+            joint_types = request.form.getlist('joint_type[]')
+            for jt in joint_types:
+                if jt.strip():
+                    joint = JointType(
+                        fmc_id=fmc.id,
+                        joint_type=jt,
+                        created_by=fmc.updated_by,
+                        updated_by=fmc.updated_by,
+                        updated_at=datetime.utcnow()
+                    )
+                    db.session.add(joint)
+
+            # Update Pipe Information
+            db.session.query(PipeInformation).filter_by(fmc_id=fmc.id).delete()
+            pipe_used_meters = safe_float(request.form.get('pipe_used_meters'), 'pipe_used_meters') if request.form.get('pipe_used_meters') else None
+            pipe_size_inches = safe_float(request.form.get('pipe_size_inches'), 'pipe_size_inches') if request.form.get('pipe_size_inches') else None
+            pipe_type = request.form.get('pipe_type') or None
+            if any([pipe_used_meters, pipe_size_inches, pipe_type]):
+                pipe = PipeInformation(
+                    fmc_id=fmc.id,
+                    pipe_used_meters=pipe_used_meters,
+                    pipe_size_inches=pipe_size_inches,
+                    pipe_type=pipe_type,
+                    created_by=fmc.updated_by,
+                    updated_by=fmc.updated_by,
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(pipe)
+
+            if fmc.category not in VALID_CATEGORIES or (fmc.domain not in VALID_DOMAINS[fmc.category] and fmc.domain != 'All'):
+                raise ValueError("Invalid category or domain")
+
+            db.session.commit()
+            flash('Data updated successfully!', 'success')
+            return redirect(url_for('view_fmc'))
+        else:
+            joint_types = [jt.joint_type for jt in fmc.joint_types]
+            pipe_info = fmc.pipe_info[0] if fmc.pipe_info else None
+            return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in edit route: {str(e)}")
+        flash(f"Error editing data: {str(e)}", 'error')
+        return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info)
+
+@app.route('/delete/<int:id>', methods=['POST'])
+@master_required
+def delete(id):
+    try:
+        fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        db.session.delete(fmc)
+        db.session.commit()
+        flash('Data deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete route: {str(e)}")
+        flash(f"Error deleting data: {str(e)}", 'error')
+    return redirect(url_for('view_fmc'))
+
+@app.route('/api/fmc/<int:id>', methods=['GET'])
+@login_required
+def get_fmc_details(id):
+    try:
+        fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        return jsonify({
+            'id': fmc.id,
+            'category': fmc.category,
+            'domain': fmc.domain,
+            'cable_cut_noc_id': fmc.cable_cut_noc_id,
+            'cable_used_meters': fmc.cable_used_meters,
+            'cable_type': fmc.cable_type,
+            'cable_capacity': fmc.cable_capacity,
+            'no_of_joints': fmc.no_of_joints,
+            'joint_types': [{'id': jt.id, 'joint_type': jt.joint_type} for jt in fmc.joint_types],
+            'pipe_info': [{
+                'id': pi.id,
+                'pipe_used_meters': pi.pipe_used_meters,
+                'pipe_size_inches': pi.pipe_size_inches,
+                'pipe_type': pi.pipe_type
+            } for pi in fmc.pipe_info]
+        })
+    except Exception as e:
+        logger.error(f"Error in get_fmc_details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True)

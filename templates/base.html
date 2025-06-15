@@ -156,7 +156,6 @@
     <!-- Desktop Sidebar -->
     <aside class="sidebar-bg fixed top-0 left-0 h-full w-64 px-6 py-7 flex flex-col z-40 hidden lg:flex">
         <div class="mb-8 flex items-center gap-3">
-            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-10 w-10 rounded-lg shadow" />
             <a href="{{ url_for('index') }}" class="font-bold text-lg text-white drop-shadow fmcp-link" style="color:#fff;">FMCPortal</a>
         </div>
         <div class="mb-8 flex flex-col items-center">
@@ -174,6 +173,14 @@
                     </svg>
                 </span>
                 <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('view_fmc') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('view_fmc') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </span>
+                <span>View Data</span>
             </a>
             <a href="{{ url_for('add') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('add') else '' }}">
                 <span class="icon">
@@ -196,7 +203,6 @@
     <!-- Mobile Sidebar -->
     <div id="mobileSidebar" class="mobile-sidebar closed fixed top-0 left-0 h-full w-64 px-6 py-7 z-50 flex flex-col lg:hidden sidebar-bg">
         <div class="mb-8 flex items-center gap-3">
-            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-10 w-10 rounded-lg shadow" />
             <a href="{{ url_for('index') }}" class="font-bold text-lg text-white drop-shadow fmcp-link" style="color:#fff;">FMCPortal</a>
         </div>
         <div class="mb-8 flex flex-col items-center">
@@ -214,6 +220,14 @@
                     </svg>
                 </span>
                 <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('view_fmc') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('view_fmc') else '' }}">
+                <span class="icon">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </span>
+                <span>View Data</span>
             </a>
             <a href="{{ url_for('add') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('add') else '' }}">
                 <span class="icon">
@@ -243,13 +257,11 @@
         </button>
         <div class="desktop-header-center hidden lg:flex">
             <a href="/" class="fmcp-link flex items-center gap-2 text-2xl font-extrabold tracking-wide hover:underline">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-8 w-8 rounded shadow" />
                 FMCPortal
             </a>
         </div>
         <div class="mobile-header-title lg:hidden font-extrabold">
             <a href="/" class="fmcp-link flex items-center gap-2 text-xl font-extrabold tracking-wide">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="h-7 w-7 rounded shadow" />
                 FMCPortal
             </a>
         </div>
