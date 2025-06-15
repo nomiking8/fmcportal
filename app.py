@@ -376,31 +376,21 @@ def index():
         total_entries = len(entries)
 
         # Category-wise counts
-        categories = db.session.query(
-            FMCInformation.category, db.func.count(FMCInformation.id)
-        ).group_by(FMCInformation.category).all()
-        category_labels = [c[0] for c in categories]
-        category_counts = [c[1] for c in categories]
-        logger.debug(f"Category Labels: {category_labels}, Counts: {category_counts}")
-
-        # Domain-wise counts
-        domains = db.session.query(
-            FMCInformation.domain, db.func.count(FMCInformation.id)
-        )
+        longhaul_count = db.session.query(
+            db.func.count(FMCInformation.id)
+        ).filter(FMCInformation.category == 'Longhaul')
         if user_role != 'master':
-            domains = domains.filter_by(category=user_category, domain=user_domain)
-        domains = domains.group_by(FMCInformation.domain).all()
-        domain_labels = [d[0] for d in domains]
-        domain_counts = [d[1] for d in domains]
-        logger.debug(f"Domain Labels: {domain_labels}, Counts: {domain_counts}")
+            longhaul_count = longhaul_count.filter_by(category=user_category, domain=user_domain)
+        longhaul_count = longhaul_count.scalar() or 0
 
-        # Cable type distribution
-        cable_types = db.session.query(
-            FMCInformation.cable_type, db.func.count(FMCInformation.id)
-        ).group_by(FMCInformation.cable_type).all()
-        cable_type_labels = [ct[0] for ct in cable_types if ct[0]]
-        cable_type_counts = [ct[1] for ct in cable_types if ct[0]]
-        logger.debug(f"Cable Type Labels: {cable_type_labels}, Counts: {cable_type_counts}")
+        gpon_fmc_count = db.session.query(
+            db.func.count(FMCInformation.id)
+        ).filter(FMCInformation.category == 'GPON_FMC')
+        if user_role != 'master':
+            gpon_fmc_count = gpon_fmc_count.filter_by(category=user_category, domain=user_domain)
+        gpon_fmc_count = gpon_fmc_count.scalar() or 0
+
+        logger.debug(f"Longhaul Count: {longhaul_count}, GPON_FMC Count: {gpon_fmc_count}")
 
         # Total cable used (meters)
         total_cable_used = db.session.query(
@@ -418,17 +408,6 @@ def index():
             total_joints = total_joints.filter_by(category=user_category, domain=user_domain)
         total_joints = total_joints.scalar()
 
-        # Joint type distribution
-        joint_types = db.session.query(
-            JointType.joint_type, db.func.count(JointType.id)
-        ).join(FMCInformation)
-        if user_role != 'master':
-            joint_types = joint_types.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
-        joint_types = joint_types.group_by(JointType.joint_type).all()
-        joint_type_labels = [jt[0] for jt in joint_types if jt[0]]
-        joint_type_counts = [jt[1] for jt in joint_types if jt[0]]
-        logger.debug(f"Joint Type Labels: {joint_type_labels}, Counts: {joint_type_counts}")
-
         # Pipe usage (meters)
         total_pipe_used = db.session.query(
             db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)
@@ -441,16 +420,10 @@ def index():
             'index.html',
             entries=entries,
             total_entries=total_entries,
-            category_labels=category_labels,
-            category_counts=category_counts,
-            domain_labels=domain_labels,
-            domain_counts=domain_counts,
-            cable_type_labels=cable_type_labels,
-            cable_type_counts=cable_type_counts,
+            longhaul_count=longhaul_count,
+            gpon_fmc_count=gpon_fmc_count,
             total_cable_used=total_cable_used,
             total_joints=total_joints,
-            joint_type_labels=joint_type_labels,
-            joint_type_counts=joint_type_counts,
             total_pipe_used=total_pipe_used,
             user_role=user_role,
             user_category=user_category,
