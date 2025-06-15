@@ -38,12 +38,14 @@ logger.setLevel(logging.DEBUG)
 
 # Supabase setup
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')  # anon/public
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')  # service_role
+
 if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY]):
     raise ValueError("SUPABASE_URL, SUPABASE_KEY, and SUPABASE_SERVICE_KEY must be set")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # Valid domains
 VALID_CATEGORIES = ['Longhaul', 'GPON_FMC']
