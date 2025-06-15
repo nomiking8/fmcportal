@@ -263,6 +263,87 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/password_reset', methods=['GET', 'POST'])
+def password_reset():
+    if request.method == 'POST':
+        username = request.form.get('username', '').lower().strip()
+
+        if not username:
+            flash('Username is required')
+            return render_template('password_reset.html')
+
+        try:
+            user_data = supabase_service.table('users_info').select('user_id').eq('username', username).execute()
+            if not user_data.data:
+                flash('Username does not exist')
+                return render_template('password_reset.html')
+
+            user_id = user_data.data[0]['user_id']
+            auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+            if not auth_user.user:
+                flash('User not found in authentication system')
+                return render_template('password_reset.html')
+
+            email = auth_user.user.email
+            supabase.auth.reset_password_email(email)
+            flash('Password reset email sent! Please check your email inbox.')
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            flash(f'Password reset failed: {str(e)}')
+            return render_template('password_reset.html')
+
+    return render_template('password_reset.html')
+
+@app.route('/password_reset_confirm', methods=['GET', 'POST'])
+def password_reset_confirm():
+    access_token = request.args.get('access_token') or request.form.get('access_token')
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        if not new_password or not confirm_password:
+            flash('All fields are required')
+            return render_template('password_reset_confirm.html', access_token=access_token)
+        if new_password != confirm_password:
+            flash('Passwords do not match')
+            return render_template('password_reset_confirm.html', access_token=access_token)
+
+        if not access_token:
+            flash('Invalid or missing access token')
+            return redirect(url_for('login'))
+
+        try:
+            headers = {
+                "apikey": os.environ["SUPABASE_SERVICE_KEY"],
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            }
+            data = {
+                "password": new_password
+            }
+            response = requests.put(
+                f"{os.environ['SUPABASE_URL']}/auth/v1/user",
+                headers=headers,
+                json=data
+            )
+            if response.status_code == 200:
+                flash('Password reset successfully! Please log in.')
+                return redirect(url_for('login'))
+            else:
+                error_msg = response.json().get("msg") or response.text
+                flash(f'Password reset failed: {error_msg}')
+                return render_template('password_reset_confirm.html', access_token=access_token)
+        except Exception as e:
+            flash(f'Password reset failed: {str(e)}')
+            return render_template('password_reset_confirm.html', access_token=access_token)
+
+    if not access_token:
+        flash('Invalid or missing access token')
+        return redirect(url_for('login'))
+
+    return render_template('password_reset_confirm.html', access_token=access_token)
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -284,17 +365,86 @@ def index():
         user_category = session.get('category')
         user_domain = session.get('domain')
 
+        # Base query for FMC entries
         query = FMCInformation.query
         if user_role != 'master':
             query = query.filter_by(category=user_category, domain=user_domain)
-
         entries = query.all()
         total_entries = len(entries)
+
+        # Category-wise counts
+        categories = db.session.query(
+            FMCInformation.category, db.func.count(FMCInformation.id)
+        ).group_by(FMCInformation.category).all()
+        category_labels = [c[0] for c in categories]
+        category_counts = [c[1] for c in categories]
+
+        # Domain-wise counts (for master users or specific domain for regular users)
+        domains = db.session.query(
+            FMCInformation.domain, db.func.count(FMCInformation.id)
+        )
+        if user_role != 'master':
+            domains = domains.filter_by(category=user_category, domain=user_domain)
+        domains = domains.group_by(FMCInformation.domain).all()
+        domain_labels = [d[0] for d in domains]
+        domain_counts = [d[1] for d in domains]
+
+        # Cable type distribution
+        cable_types = db.session.query(
+            FMCInformation.cable_type, db.func.count(FMCInformation.id)
+        ).group_by(FMCInformation.cable_type).all()
+        cable_type_labels = [ct[0] for ct in cable_types if ct[0]]
+        cable_type_counts = [ct[1] for ct in cable_types if ct[0]]
+
+        # Total cable used (meters)
+        total_cable_used = db.session.query(
+            db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)
+        )
+        if user_role != 'master':
+            total_cable_used = total_cable_used.filter_by(category=user_category, domain=user_domain)
+        total_cable_used = total_cable_used.scalar()
+
+        # Total joints used
+        total_joints = db.session.query(
+            db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)
+        )
+        if user_role != 'master':
+            total_joints = total_joints.filter_by(category=user_category, domain=user_domain)
+        total_joints = total_joints.scalar()
+
+        # Joint type distribution
+        joint_types = db.session.query(
+            JointType.joint_type, db.func.count(JointType.id)
+        ).join(FMCInformation)
+        if user_role != 'master':
+            joint_types = joint_types.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+        joint_types = joint_types.group_by(JointType.joint_type).all()
+        joint_type_labels = [jt[0] for jt in joint_types if jt[0]]
+        joint_type_counts = [jt[1] for jt in joint_types if jt[0]]
+
+        # Pipe usage (meters)
+        total_pipe_used = db.session.query(
+            db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)
+        ).join(FMCInformation)
+        if user_role != 'master':
+            total_pipe_used = total_pipe_used.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+        total_pipe_used = total_pipe_used.scalar()
 
         return render_template(
             'index.html',
             entries=entries,
             total_entries=total_entries,
+            category_labels=category_labels,
+            category_counts=category_counts,
+            domain_labels=domain_labels,
+            domain_counts=domain_counts,
+            cable_type_labels=cable_type_labels,
+            cable_type_counts=cable_type_counts,
+            total_cable_used=total_cable_used,
+            total_joints=total_joints,
+            joint_type_labels=joint_type_labels,
+            joint_type_counts=joint_type_counts,
+            total_pipe_used=total_pipe_used,
             user_role=user_role,
             user_category=user_category,
             user_domain=user_domain

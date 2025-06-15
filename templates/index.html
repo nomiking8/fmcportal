@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Dashboard
+{% endblock %}
+
+{% block content %}
+<!-- Main Content -->
+<main class="container mx-auto px-4 py-6">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">FMC Data Analytics</h2>
+
+    <!-- Summary Section -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+        <!-- Total Entries -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-purple-500 to-indigo-700 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-purple-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Total Entries</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ total_entries }}</p>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+                <div class="flex items-center justify-center bg-purple-600/30 rounded-lg py-1">
+                    <span class="text-xs sm:text-sm font-semibold text-white">Longhaul:</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ category_counts[category_labels.index('Longhaul')] if 'Longhaul' in category_labels else 0 }}</span>
+                </div>
+                <div class="flex items-center justify-center bg-purple-600/30 rounded-lg py-1">
+                    <span class="text-xs sm:text-sm font-semibold text-white">GPON_FMC:</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ category_counts[category_labels.index('GPON_FMC')] if 'GPON_FMC' in category_labels else 0 }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Cable Used -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-blue-500 to-teal-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-blue-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Total Cable Used</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-green-300">{{ total_cable_used|round(2) }} m</p>
+            <p class="text-sm text-gray-100">Meters of Cable Used</p>
+        </div>
+
+        <!-- Total Joints -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-red-500 to-orange-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-red-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Total Joints</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H8m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-200">{{ total_joints }}</p>
+            <p class="text-sm text-gray-100">Number of Joints Used</p>
+        </div>
+
+        <!-- Total Pipe Used -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-green-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Total Pipe Used</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ total_pipe_used|round(2) }} m</p>
+            <p class="text-sm text-gray-100">Meters of Pipe Used</p>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Entries by Category</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Entries by Domain</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="domainChart"></canvas>
+            </div>
+        </div>
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Cable Type Distribution</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="cableTypeChart"></canvas>
+            </div>
+        </div>
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Joint Type Distribution</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="jointTypeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="mt-8 backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Recent Entries</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cable Used (m)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cable Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. of Joints</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for entry in entries|sort(attribute='created_at', reverse=True)|slice(0, 5) %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.category }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.domain }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.cable_used_meters|round(2) if entry.cable_used_meters else '-' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.cable_type or '-' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.no_of_joints or '-' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.created_by }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No entries found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Custom Animations */
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @keyframes bounceIn {
+        0% { transform: scale(0.9); opacity: 0; }
+        50% { transform: scale(1.05); opacity: 0.7; }
+        70% { transform: scale(0.95); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.8s ease-in-out;
+    }
+    .animate-bounce-in {
+        animation: bounceIn 0.8s ease-out;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const userRole = {{ user_role|tojson|safe }};
+        const userCategory = {{ user_category|tojson|safe }};
+        const userDomain = {{ user_domain|tojson|safe }};
+        const categoryLabels = {{ category_labels|tojson|safe }};
+        const categoryCounts = {{ category_counts|tojson|safe }};
+        const domainLabels = {{ domain_labels|tojson|safe }};
+        const domainCounts = {{ domain_counts|tojson|safe }};
+        const cableTypeLabels = {{ cable_type_labels|tojson|safe }};
+        const cableTypeCounts = {{ cable_type_counts|tojson|safe }};
+        const jointTypeLabels = {{ joint_type_labels|tojson|safe }};
+        const jointTypeCounts = {{ joint_type_counts|tojson|safe }};
+
+        // Category Chart
+        try {
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            new Chart(categoryCtx, {
+                type: 'bar',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{
+                        label: 'Entries',
+                        data: categoryCounts,
+                        backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 1,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
+                        x: { ticks: { color: '#4a5568' } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Entries by Category', color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Category Chart:', error);
+        }
+
+        // Domain Chart
+        try {
+            const domainCtx = document.getElementById('domainChart').getContext('2d');
+            new Chart(domainCtx, {
+                type: 'bar',
+                data: {
+                    labels: domainLabels,
+                    datasets: [{
+                        label: 'Entries',
+                        data: domainCounts,
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderColor: '#10b981',
+                        borderWidth: 1,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
+                        x: { ticks: { color: '#4a5568' } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: userRole === 'master' ? 'Entries by Domain' : `Entries for ${userDomain}`, color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Domain Chart:', error);
+        }
+
+        // Cable Type Chart
+        try {
+            const cableTypeCtx = document.getElementById('cableTypeChart').getContext('2d');
+            new Chart(cableTypeCtx, {
+                type: 'pie',
+                data: {
+                    labels: cableTypeLabels,
+                    datasets: [{
+                        data: cableTypeCounts,
+                        backgroundColor: ['#22c55e', '#ef4444', '#facc15'],
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#4a5568', font: { size: 12 } } },
+                        title: { display: true, text: 'Cable Type Distribution', color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Cable Type Chart:', error);
+        }
+
+        // Joint Type Chart
+        try {
+            const jointTypeCtx = document.getElementById('jointTypeChart').getContext('2d');
+            new Chart(jointTypeCtx, {
+                type: 'pie',
+                data: {
+                    labels: jointTypeLabels,
+                    datasets: [{
+                        data: jointTypeCounts,
+                        backgroundColor: ['#22c55e', '#ef4444', '#facc15', '#3b82f6'],
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#4a5568', font: { size: 12 } } },
+                        title: { display: true, text: 'Joint Type Distribution', color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Joint Type Chart:', error);
+        }
+    });
+</script>
+{% endblock %}
