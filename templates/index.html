@@ -23,11 +23,23 @@
             <div class="mt-3 grid grid-cols-2 gap-2">
                 <div class="flex items-center justify-center bg-purple-600/30 rounded-lg py-1">
                     <span class="text-xs sm:text-sm font-semibold text-white">Longhaul:</span>
-                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ category_counts[category_labels.index('Longhaul')] if 'Longhaul' in category_labels else 0 }}</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">
+                        {% if 'Longhaul' in category_labels %}
+                            {{ category_counts[category_labels.index('Longhaul')] }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="flex items-center justify-center bg-purple-600/30 rounded-lg py-1">
                     <span class="text-xs sm:text-sm font-semibold text-white">GPON_FMC:</span>
-                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ category_counts[category_labels.index('GPON_FMC')] if 'GPON_FMC' in category_labels else 0 }}</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">
+                        {% if 'GPON_FMC' in category_labels %}
+                            {{ category_counts[category_labels.index('GPON_FMC')] }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </span>
                 </div>
             </div>
         </div>

@@ -365,6 +365,9 @@ def index():
         user_category = session.get('category')
         user_domain = session.get('domain')
 
+        # Log user info for debugging
+        logger.debug(f"User: {session.get('username')}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
+
         # Base query for FMC entries
         query = FMCInformation.query
         if user_role != 'master':
@@ -378,8 +381,9 @@ def index():
         ).group_by(FMCInformation.category).all()
         category_labels = [c[0] for c in categories]
         category_counts = [c[1] for c in categories]
+        logger.debug(f"Category Labels: {category_labels}, Counts: {category_counts}")
 
-        # Domain-wise counts (for master users or specific domain for regular users)
+        # Domain-wise counts
         domains = db.session.query(
             FMCInformation.domain, db.func.count(FMCInformation.id)
         )
@@ -388,6 +392,7 @@ def index():
         domains = domains.group_by(FMCInformation.domain).all()
         domain_labels = [d[0] for d in domains]
         domain_counts = [d[1] for d in domains]
+        logger.debug(f"Domain Labels: {domain_labels}, Counts: {domain_counts}")
 
         # Cable type distribution
         cable_types = db.session.query(
@@ -395,6 +400,7 @@ def index():
         ).group_by(FMCInformation.cable_type).all()
         cable_type_labels = [ct[0] for ct in cable_types if ct[0]]
         cable_type_counts = [ct[1] for ct in cable_types if ct[0]]
+        logger.debug(f"Cable Type Labels: {cable_type_labels}, Counts: {cable_type_counts}")
 
         # Total cable used (meters)
         total_cable_used = db.session.query(
@@ -421,6 +427,7 @@ def index():
         joint_types = joint_types.group_by(JointType.joint_type).all()
         joint_type_labels = [jt[0] for jt in joint_types if jt[0]]
         joint_type_counts = [jt[1] for jt in joint_types if jt[0]]
+        logger.debug(f"Joint Type Labels: {joint_type_labels}, Counts: {joint_type_counts}")
 
         # Pipe usage (meters)
         total_pipe_used = db.session.query(
@@ -450,8 +457,10 @@ def index():
             user_domain=user_domain
         )
     except Exception as e:
+        logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
         return redirect(url_for('index'))
+
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
