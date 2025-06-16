@@ -15,7 +15,9 @@
                 </div>
                 <div>
                     <label for="category" class="block text-gray-700 mb-2 font-medium">Category</label>
-                    {% if user_role == 'master' %}
+                    {% if user_role == 'master' and user_category != 'All' %}
+                    <input type="text" id="category" name="category" value="{{ user_category }}" class="w-full p-3 border rounded-lg bg-gray-100" readonly>
+                    {% elif user_role == 'master' and user_category == 'All' %}
                     <select id="category" name="category" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" required>
                         <option value="" disabled selected>Select Category</option>
                         <option value="Longhaul">Longhaul</option>
@@ -109,19 +111,28 @@
             ]
         };
 
-        // Populate domains based on category (for master users only)
+        // Initialize domain dropdown for master users
+        function populateDomains(category) {
+            domainSelect.innerHTML = '<option value="" disabled selected>Select Domain</option>';
+            if (category && domains[category]) {
+                domains[category].forEach(domain => {
+                    const option = document.createElement('option');
+                    option.value = domain;
+                    option.textContent = domain;
+                    domainSelect.appendChild(option);
+                });
+            }
+        }
+
+        // For master users with readonly category, populate domains immediately
+        {% if user_role == 'master' and user_category != 'All' %}
+        populateDomains('{{ user_category }}');
+        {% endif %}
+
+        // For master users with category dropdown, update domains on change
         if (categorySelect.tagName === 'SELECT') {
             categorySelect.addEventListener('change', function () {
-                const category = this.value;
-                domainSelect.innerHTML = '<option value="" disabled selected>Select Domain</option>';
-                if (category && domains[category]) {
-                    domains[category].forEach(domain => {
-                        const option = document.createElement('option');
-                        option.value = domain;
-                        option.textContent = domain;
-                        domainSelect.appendChild(option);
-                    });
-                }
+                populateDomains(this.value);
             });
         }
 
