@@ -1,10 +1,10 @@
 import os
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientError
 from functools import wraps
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -13,6 +13,8 @@ import logging
 import re
 import requests
 from uuid import uuid4
+import pandas as pd
+from io import BytesIO
 
 # Load environment variables
 load_dotenv()
@@ -461,6 +463,12 @@ def add():
                 if category not in VALID_CATEGORIES or (domain not in VALID_DOMAINS[category] and domain != 'All'):
                     raise ValueError("Invalid category or domain")
 
+            # Validate joint types
+            joint_types = request.form.getlist('joint_type[]')
+            joint_types = [jt.strip() for jt in joint_types if jt.strip()]
+            if no_of_joints is not None and len(joint_types) != no_of_joints:
+                raise ValueError(f"Number of joint types ({len(joint_types)}) does not match number of joints ({no_of_joints})")
+
             fmc = FMCInformation(
                 region='RTR',
                 category=category,
@@ -478,17 +486,15 @@ def add():
             db.session.flush()
 
             # Joint Types
-            joint_types = request.form.getlist('joint_type[]')
             for jt in joint_types:
-                if jt.strip():
-                    joint = JointType(
-                        fmc_id=fmc.id,
-                        joint_type=jt,
-                        created_by=username,
-                        updated_by=username,
-                        updated_at=datetime.utcnow()
-                    )
-                    db.session.add(joint)
+                joint = JointType(
+                    fmc_id=fmc.id,
+                    joint_type=jt,
+                    created_by=username,
+                    updated_by=username,
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(joint)
 
             # Pipe Information
             pipe_used_meters = safe_float(request.form.get('pipe_used_meters'), 'pipe_used_meters') if request.form.get('pipe_used_meters') else None
@@ -529,12 +535,7 @@ def view_fmc():
         query = apply_data_filter(query)
 
         if search:
-            query = query.filter(
-                db.or_(
-                    FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'),
-                    FMCInformation.domain.ilike(f'%{search}%')
-                )
-            )
+            query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
         per_page = 10
         pagination = query.order_by(FMCInformation.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
@@ -566,19 +567,23 @@ def edit(id):
             fmc.updated_by = session.get('username', 'unknown_user')
             fmc.updated_at = datetime.utcnow()
 
+            # Validate joint types
+            joint_types = request.form.getlist('joint_type[]')
+            joint_types = [jt.strip() for jt in joint_types if jt.strip()]
+            if fmc.no_of_joints is not None and len(joint_types) != fmc.no_of_joints:
+                raise ValueError(f"Number of joint types ({len(joint_types)}) does not match number of joints ({fmc.no_of_joints})")
+
             # Update Joint Types
             db.session.query(JointType).filter_by(fmc_id=fmc.id).delete()
-            joint_types = request.form.getlist('joint_type[]')
             for jt in joint_types:
-                if jt.strip():
-                    joint = JointType(
-                        fmc_id=fmc.id,
-                        joint_type=jt,
-                        created_by=fmc.updated_by,
-                        updated_by=fmc.updated_by,
-                        updated_at=datetime.utcnow()
-                    )
-                    db.session.add(joint)
+                joint = JointType(
+                    fmc_id=fmc.id,
+                    joint_type=jt,
+                    created_by=fmc.updated_by,
+                    updated_by=fmc.updated_by,
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(joint)
 
             # Update Pipe Information
             db.session.query(PipeInformation).filter_by(fmc_id=fmc.id).delete()
@@ -641,6 +646,10 @@ def get_fmc_details(id):
             'cable_type': fmc.cable_type,
             'cable_capacity': fmc.cable_capacity,
             'no_of_joints': fmc.no_of_joints,
+            'created_by': fmc.created_by,
+            'created_at': fmc.created_at.isoformat(),
+            'updated_by': fmc.updated_by,
+            'updated_at': fmc.updated_at.isoformat(),
             'joint_types': [{'id': jt.id, 'joint_type': jt.joint_type} for jt in fmc.joint_types],
             'pipe_info': [{
                 'id': pi.id,
@@ -652,6 +661,44 @@ def get_fmc_details(id):
     except Exception as e:
         logger.error(f"Error in get_fmc_details: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/export_fmc', methods=['GET'])
+@login_required
+def export_fmc():
+    try:
+        search = request.args.get('search', '').strip()
+        query = FMCInformation.query
+        query = apply_data_filter(query)
+
+        if search:
+            query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
+
+        data = query.order_by(FMCInformation.created_at.desc()).all()
+        records = [{
+            'ID': fmc.id,
+            'Category': fmc.category,
+            'Domain': fmc.domain,
+            'NOC ID': fmc.cable_cut_noc_id or '-',
+            'Created By': fmc.created_by,
+            'Created At': fmc.created_at.strftime('%Y-%m-%d %H:%M')
+        } for fmc in data]
+
+        df = pd.DataFrame(records)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='FMC Data')
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='fmc_data.xlsx'
+        )
+    except Exception as e:
+        logger.error(f"Error in export_fmc: {str(e)}")
+        flash(f"Error exporting data: {str(e)}")
+        return redirect(url_for('view_fmc'))
     
 if __name__ == '__main__':
     app.run(debug=True)

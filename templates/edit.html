@@ -48,7 +48,7 @@
                 </div>
                 <div>
                     <label for="no_of_joints" class="block text-gray-700 mb-2 font-medium">No. of Joints Used</label>
-                    <input type="number" id="no_of_joints" name="no_of_joints" value="{{ fmc.no_of_joints or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="Enter number of joints">
+                    <input type="number" id="no_of_joints" name="no_of_joints" value="{{ fmc.no_of_joints or '' }}" min="0" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="Enter number of joints">
                 </div>
             </div>
         </div>
@@ -60,14 +60,10 @@
                 <div class="joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm">
                     <div class="w-full">
                         <label class="block text-gray-700 mb-2 font-medium">Joint Type</label>
-                        <input type="text" name="joint_type[]" value="{{ jt }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type">
+                        <input type="text" name="joint_type[]" value="{{ jt }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
                     </div>
-                    <button type="button" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 remove-joint ml-2">Remove</button>
                 </div>
                 {% endfor %}
-            </div>
-            <div class="text-center">
-                <button type="button" id="add_joint" class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 shadow-md transition duration-200">Add Joint Type</button>
             </div>
         </div>
         <!-- Pipe Information -->
@@ -101,7 +97,6 @@
         const domainSelect = document.getElementById('domain');
         const noOfJointsInput = document.getElementById('no_of_joints');
         const jointContainer = document.getElementById('joint_container');
-        const addJointBtn = document.getElementById('add_joint');
 
         const domains = {
             'Longhaul': [
@@ -140,43 +135,24 @@
         function updateJointFields() {
             const numJoints = parseInt(noOfJointsInput.value) || 0;
             const existingJoints = jointContainer.children.length;
-            if (numJoints < existingJoints) {
-                for (let i = existingJoints - 1; i >= numJoints; i--) {
-                    jointContainer.children[i].remove();
-                }
-            } else {
-                for (let i = existingJoints; i < numJoints; i++) {
-                    const div = document.createElement('div');
-                    div.className = 'joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm';
-                    div.innerHTML = `
-                        <div class="w-full">
-                            <label class="block text-gray-700 mb-2 font-medium">Joint Type ${i + 1}</label>
-                            <input type="text" name="joint_type[]" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type">
-                        </div>
-                        <button type="button" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 remove-joint ml-2">Remove</button>
-                    `;
-                    jointContainer.appendChild(div);
-                }
-            }
-            addRemoveJointListeners();
-        }
+            const jointTypes = {{ joint_types|tojson }} || [];
 
-        function addRemoveJointListeners() {
-            document.querySelectorAll('.remove-joint').forEach(button => {
-                button.addEventListener('click', function () {
-                    this.parentElement.remove();
-                    noOfJointsInput.value = jointContainer.children.length;
-                });
-            });
+            jointContainer.innerHTML = '';
+            for (let i = 0; i < numJoints; i++) {
+                const div = document.createElement('div');
+                div.className = 'joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm';
+                div.innerHTML = `
+                    <div class="w-full">
+                        <label class="block text-gray-700 mb-2 font-medium">Joint Type ${i + 1}</label>
+                        <input type="text" name="joint_type[]" value="${jointTypes[i] || ''}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
+                    </div>
+                `;
+                jointContainer.appendChild(div);
+            }
         }
 
         noOfJointsInput.addEventListener('input', updateJointFields);
-        addJointBtn.addEventListener('click', function () {
-            noOfJointsInput.value = (parseInt(noOfJointsInput.value) || 0) + 1;
-            updateJointFields();
-        });
-
-        addRemoveJointListeners();
+        updateJointFields(); // Initialize on load
     });
 </script>
 {% endblock %}
