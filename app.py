@@ -107,30 +107,20 @@ def apply_data_filter(query):
     user_category = session.get('category')
     user_domain = session.get('domain')
 
-    logger.debug(f"Applying filter: role={user_role}, category={user_category}, domain={user_domain}")
-
     if user_role == 'master':
         if user_category == 'All' and user_domain == 'All':
-            logger.debug("No filter applied (master, All, All)")
+            # Master with full access
             return query
-        elif user_category in VALID_CATEGORIES and user_domain == 'All':
-            logger.debug(f"Filtering by category={user_category}, all domains in {VALID_DOMAINS[user_category]}")
-            return query.filter(
-                FMCInformation.category == user_category,
-                FMCInformation.domain.in_(VALID_DOMAINS[user_category])
-            )
+        elif user_category != 'All' and user_domain == 'All':
+            # Master with specific category, all domains in that category
+            domains = VALID_DOMAINS.get(user_category, [])
+            return query.filter(FMCInformation.category == user_category, FMCInformation.domain.in_(domains))
         else:
-            logger.debug(f"Filtering by category={user_category}, domain={user_domain}")
-            return query.filter(
-                FMCInformation.category == user_category,
-                FMCInformation.domain == user_domain
-            )
+            # Master with specific category and specific domain
+            return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
     else:
-        logger.debug(f"Non-master: Filtering by category={user_category}, domain={user_domain}")
-        return query.filter(
-            FMCInformation.category == user_category,
-            FMCInformation.domain == user_domain
-        )
+        # Simple user: filter by their assigned category and domain
+        return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
 
 # Database Models
 class FMCInformation(db.Model):
