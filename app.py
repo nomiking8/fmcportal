@@ -1,7 +1,7 @@
 import os
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
-from supabase import create_client, Client  # Removed ClientError
+from supabase import create_client, Client
 from functools import wraps
 import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, send_file
@@ -15,6 +15,7 @@ import requests
 from uuid import uuid4
 import pandas as pd
 from io import BytesIO
+import pytz  # Added for PKT timezone
 
 # Load environment variables
 load_dotenv()
@@ -661,7 +662,7 @@ def get_fmc_details(id):
     except Exception as e:
         logger.error(f"Error in get_fmc_details: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/export_fmc', methods=['GET'])
 @login_required
 def export_fmc():
@@ -674,14 +675,40 @@ def export_fmc():
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
         data = query.order_by(FMCInformation.created_at.desc()).all()
-        records = [{
-            'ID': fmc.id,
-            'Category': fmc.category,
-            'Domain': fmc.domain,
-            'NOC ID': fmc.cable_cut_noc_id or '-',
-            'Created By': fmc.created_by,
-            'Created At': fmc.created_at.strftime('%Y-%m-%d %H:%M')
-        } for fmc in data]
+        pkt_tz = pytz.timezone('Asia/Karachi')  # Pakistan Standard Time (PKT)
+        records = []
+        for fmc in data:
+            # Convert UTC to PKT
+            created_at_pkt = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
+            updated_at_pkt = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
+            
+            # Format joint types as a comma-separated string
+            joint_types_str = ', '.join(jt.joint_type for jt in fmc.joint_types) if fmc.joint_types else '-'
+            
+            # Get pipe information
+            pipe_info = fmc.pipe_info[0] if fmc.pipe_info else None
+            pipe_used_meters = f'{pipe_info.pipe_used_meters:.2f}' if pipe_info and pipe_info.pipe_used_meters else '-'
+            pipe_size_inches = f'{pipe_info.pipe_size_inches:.2f}' if pipe_info and pipe_info.pipe_size_inches else '-'
+            pipe_type = pipe_info.pipe_type if pipe_info and pipe_info.pipe_type else '-'
+
+            records.append({
+                'ID': fmc.id,
+                'Category': fmc.category,
+                'Domain': fmc.domain,
+                'NOC ID': fmc.cable_cut_noc_id or '-',
+                'Cable Used (m)': f'{fmc.cable_used_meters:.2f}' if fmc.cable_used_meters else '-',
+                'Cable Type': fmc.cable_type or '-',
+                'Cable Capacity': fmc.cable_capacity or '-',
+                'No. of Joints': fmc.no_of_joints if fmc.no_of_joints is not None else '-',
+                'Joint Types': joint_types_str,
+                'Pipe Used (m)': pipe_used_meters,
+                'Pipe Size (in)': pipe_size_inches,
+                'Pipe Type': pipe_type,
+                'Created By': fmc.created_by,
+                'Created At': created_at_pkt.strftime('%-m/%-d/%Y, %-I:%M:%S %p'),
+                'Updated By': fmc.updated_by,
+                'Updated At': updated_at_pkt.strftime('%-m/%-d/%Y, %-I:%M:%S %p')
+            })
 
         df = pd.DataFrame(records)
         output = BytesIO()
@@ -699,6 +726,6 @@ def export_fmc():
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
-    
+
 if __name__ == '__main__':
     app.run(debug=True)
