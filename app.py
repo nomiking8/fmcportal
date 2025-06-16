@@ -437,13 +437,108 @@ def index():
         filtered_query = apply_data_filter(base_query)
         entries = filtered_query.order_by(FMCInformation.created_at.desc()).limit(5).all()
 
-        # Summary statistics
+        # --- NOC ID BY CATEGORY OVERALL ---
+        noc_by_category = (
+            filtered_query
+            .with_entities(FMCInformation.category, db.func.count(FMCInformation.cable_cut_noc_id))
+            .group_by(FMCInformation.category)
+            .all()
+        )
+        noc_by_category_dict = {cat: count for cat, count in noc_by_category}
+
+        # --- NOC ID BY CATEGORY YEAR WISE ---
+        noc_by_category_year = (
+            filtered_query
+            .with_entities(
+                db.extract('year', FMCInformation.created_at).label('year'),
+                FMCInformation.category,
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('year', FMCInformation.category)
+            .order_by('year')
+            .all()
+        )
+        # Example: {(2024, 'Longhaul'): count, ...}
+        noc_category_year_labels = sorted(set(str(int(x[0])) for x in noc_by_category_year))
+        noc_category_year_cats = sorted(set(x[1] for x in noc_by_category_year))
+        noc_category_year_data = {
+            cat: [0] * len(noc_category_year_labels) for cat in noc_category_year_cats
+        }
+        for year, cat, count in noc_by_category_year:
+            idx = noc_category_year_labels.index(str(int(year)))
+            noc_category_year_data[cat][idx] = count
+
+        # --- NOC ID BY CATEGORY MONTH WISE (2025 only) ---
+        noc_by_category_month = (
+            filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
+            .with_entities(
+                db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                FMCInformation.category,
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('month', FMCInformation.category)
+            .order_by('month')
+            .all()
+        )
+        month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        noc_category_month_cats = sorted(set(x[1] for x in noc_by_category_month))
+        noc_category_month_data = {cat: [0] * 12 for cat in noc_category_month_cats}
+        for month, cat, count in noc_by_category_month:
+            noc_category_month_data[cat][int(month)-1] = count
+
+        # --- NOC BY DOMAIN OVERALL ---
+        noc_by_domain = (
+            filtered_query
+            .with_entities(FMCInformation.domain, db.func.count(FMCInformation.cable_cut_noc_id))
+            .group_by(FMCInformation.domain)
+            .all()
+        )
+        noc_by_domain_dict = {dom: count for dom, count in noc_by_domain}
+
+        # --- NOC BY DOMAIN YEAR WISE ---
+        noc_by_domain_year = (
+            filtered_query
+            .with_entities(
+                db.extract('year', FMCInformation.created_at).label('year'),
+                FMCInformation.domain,
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('year', FMCInformation.domain)
+            .order_by('year')
+            .all()
+        )
+        noc_domain_year_labels = sorted(set(str(int(x[0])) for x in noc_by_domain_year))
+        noc_domain_year_doms = sorted(set(x[1] for x in noc_by_domain_year))
+        noc_domain_year_data = {
+            dom: [0] * len(noc_domain_year_labels) for dom in noc_domain_year_doms
+        }
+        for year, dom, count in noc_by_domain_year:
+            idx = noc_domain_year_labels.index(str(int(year)))
+            noc_domain_year_data[dom][idx] = count
+
+        # --- NOC BY DOMAIN MONTH WISE (2025 only) ---
+        noc_by_domain_month = (
+            filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
+            .with_entities(
+                db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                FMCInformation.domain,
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('month', FMCInformation.domain)
+            .order_by('month')
+            .all()
+        )
+        noc_domain_month_doms = sorted(set(x[1] for x in noc_by_domain_month))
+        noc_domain_month_data = {dom: [0] * 12 for dom in noc_domain_month_doms}
+        for month, dom, count in noc_by_domain_month:
+            noc_domain_month_data[dom][int(month)-1] = count
+
+        # --- Existing stats for summary, cable, joints, pipe, etc ---
         total_entries = filtered_query.count()
         longhaul_count = filtered_query.filter(FMCInformation.category == 'Longhaul').count()
         gpon_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
         total_cable_used = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
         total_joints = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
-
         pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
         total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
@@ -473,10 +568,35 @@ def index():
             .order_by('month')
             .all()
         )
-        month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         month_data = [0] * 12
         for month, count in month_counts:
             month_data[int(month) - 1] = count
+
+        # Yearly NOC ID totals
+        year_counts = (
+            filtered_query
+            .with_entities(
+                db.extract('year', FMCInformation.created_at).label('year'),
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('year')
+            .all()
+        )
+        year_labels = ['2024', '2025']
+        year_data = [0] * len(year_labels)
+        for year, count in year_counts:
+            if str(int(year)) in year_labels:
+                year_data[year_labels.index(str(int(year)))] = count
+
+        # Cable capacity distribution
+        cable_capacity_rows = (
+            filtered_query.filter(FMCInformation.cable_capacity.isnot(None))
+            .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))
+            .group_by(FMCInformation.cable_capacity)
+            .all()
+        )
+        cable_capacity_labels = [row[0] for row in cable_capacity_rows]
+        cable_capacity_data = [float(row[1]) for row in cable_capacity_rows]
 
         # Month-wise Cable Type counts for 2025
         cable_type_month_counts = (
@@ -518,44 +638,7 @@ def index():
         for month, size, count in pipe_size_month_counts:
             pipe_size_month_data[str(size)][int(month) - 1] = count
 
-        # Yearly NOC ID totals
-        year_counts = (
-            filtered_query
-            .with_entities(
-                db.extract('year', FMCInformation.created_at).label('year'),
-                db.func.count(FMCInformation.cable_cut_noc_id)
-            )
-            .group_by('year')
-            .all()
-        )
-        year_labels = ['2024', '2025']
-        year_data = [0] * len(year_labels)
-        for year, count in year_counts:
-            if str(int(year)) in year_labels:
-                year_data[year_labels.index(str(int(year)))] = count
-
-        # Cable capacity distribution
-        cable_capacity_rows = (
-            filtered_query.filter(FMCInformation.cable_capacity.isnot(None))
-            .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))
-            .group_by(FMCInformation.cable_capacity)
-            .all()
-        )
-        cable_capacity_labels = [row[0] for row in cable_capacity_rows]
-        cable_capacity_data = [float(row[1]) for row in cable_capacity_rows]
-
-        logger.debug(
-            f"Stats: Total={total_entries}, Longhaul={longhaul_count}, GPON_FMC={gpon_fmc_count}, Cable={total_cable_used}, Joints={total_joints}, Pipe={total_pipe_used}"
-        )
-        logger.debug(
-            f"Month counts: {month_data}, Year counts: {year_data}, Cable capacity: {dict(zip(cable_capacity_labels, cable_capacity_data))}"
-        )
-        logger.debug(
-            f"Cable type counts: {cable_type_counts}, Pipe size counts: {pipe_size_counts}"
-        )
-        logger.debug(
-            f"Cable type month data: {cable_type_month_data}, Pipe size month data: {pipe_size_month_data}"
-        )
+        logger.debug("Analytics prepared.")
 
         return render_template(
             'index.html',
@@ -578,6 +661,22 @@ def index():
             cable_type_month_data=cable_type_month_data,
             pipe_sizes=[str(size) for size in pipe_sizes],
             pipe_size_month_data=pipe_size_month_data,
+
+            # New for NOC by cat/domain
+            noc_by_category=noc_by_category_dict,
+            noc_category_year_labels=noc_category_year_labels,
+            noc_category_year_cats=noc_category_year_cats,
+            noc_category_year_data=noc_category_year_data,
+            noc_category_month_cats=noc_category_month_cats,
+            noc_category_month_data=noc_category_month_data,
+
+            noc_by_domain=noc_by_domain_dict,
+            noc_domain_year_labels=noc_domain_year_labels,
+            noc_domain_year_doms=noc_domain_year_doms,
+            noc_domain_year_data=noc_domain_year_data,
+            noc_domain_month_doms=noc_domain_month_doms,
+            noc_domain_month_data=noc_domain_month_data,
+
             user_role=user_role,
             user_category=user_category,
             user_domain=user_domain
@@ -586,7 +685,7 @@ def index():
         logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
         return redirect(url_for('index'))
-
+    
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
