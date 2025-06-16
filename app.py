@@ -16,6 +16,7 @@ from uuid import uuid4
 import pandas as pd
 from io import BytesIO
 import pytz
+from collections import Counter
 
 # Load environment variables
 load_dotenv()
@@ -436,7 +437,7 @@ def index():
         filtered_query = apply_data_filter(base_query)
         entries = filtered_query.order_by(FMCInformation.created_at.desc()).limit(5).all()
 
-        # Summary statistics using filtered query
+        # Summary statistics
         total_entries = filtered_query.count()
         longhaul_count = filtered_query.filter(FMCInformation.category == 'Longhaul').count()
         gpon_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
@@ -445,7 +446,37 @@ def index():
         pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
         total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
+        # Month-wise NOC ID counts for 2025
+        month_counts = filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)\
+            .with_entities(db.func.to_char(FMCInformation.created_at, 'MM').label('month'), db.func.count(FMCInformation.cable_cut_noc_id))\
+            .group_by('month')\
+            .order_by('month')\
+            .all()
+        month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        month_data = [0] * 12
+        for month, count in month_counts:
+            month_data[int(month) - 1] = count
+
+        # Yearly NOC ID totals
+        year_counts = filtered_query.with_entities(db.extract('year', FMCInformation.created_at).label('year'), db.func.count(FMCInformation.cable_cut_noc_id))\
+            .group_by('year')\
+            .all()
+        year_labels = ['2024', '2025']
+        year_data = [0] * len(year_labels)
+        for year, count in year_counts:
+            if str(int(year)) in year_labels:
+                year_data[year_labels.index(str(int(year)))] = count
+
+        # Cable capacity distribution
+        cable_capacity_rows = filtered_query.filter(FMCInformation.cable_capacity.isnot(None))\
+            .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))\
+            .group_by(FMCInformation.cable_capacity)\
+            .all()
+        cable_capacity_labels = [row[0] for row in cable_capacity_rows]
+        cable_capacity_data = [float(row[1]) for row in cable_capacity_rows]
+
         logger.debug(f"Stats: Total={total_entries}, Longhaul={longhaul_count}, GPON_FMC={gpon_fmc_count}, Cable={total_cable_used}, Joints={total_joints}, Pipe={total_pipe_used}")
+        logger.debug(f"Month counts: {month_data}, Year counts: {year_data}, Cable capacity: {dict(zip(cable_capacity_labels, cable_capacity_data))}")
 
         return render_template(
             'index.html',
@@ -456,6 +487,12 @@ def index():
             total_cable_used=total_cable_used,
             total_joints=total_joints,
             total_pipe_used=total_pipe_used,
+            month_labels=month_labels,
+            month_counts=month_data,
+            year_labels=year_labels,
+            year_counts=year_data,
+            cable_capacity_labels=cable_capacity_labels,
+            cable_capacity_counts=cable_capacity_data,
             user_role=user_role,
             user_category=user_category,
             user_domain=user_domain
