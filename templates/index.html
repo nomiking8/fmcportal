@@ -67,6 +67,44 @@
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ "%.2f" | format(total_pipe_used) }} m</p>
             <p class="text-sm text-gray-100">Total Meters of Pipe Deployed</p>
         </div>
+
+        <!-- Entries by Cable Type -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-yellow-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Entries by Cable Type</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ cable_type_counts.values() | sum }}</p>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+                {% for type, count in cable_type_counts.items() %}
+                <div class="flex items-center justify-center bg-yellow-600/30 rounded-lg py-1">
+                    <span class="text-xs sm:text-sm font-semibold text-white">{{ type }}:</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Entries by Pipe Size -->
+        <div class="backdrop-blur-md bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-teal-300">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Entries by Pipe Size</h2>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ pipe_size_counts.values() | sum }}</p>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+                {% for size, count in pipe_size_counts.items() %}
+                <div class="flex items-center justify-center bg-teal-600/30 rounded-lg py-1">
+                    <span class="text-xs sm:text-sm font-semibold text-white">{{ "%.2f" | format(size|float) }} in:</span>
+                    <span class="ml-1 text-xs sm:text-sm font-bold text-yellow-200">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 
     <!-- Charts Section -->
@@ -92,6 +130,22 @@
             <h2 class="text-lg font-semibold text-gray-700 mb-4">Cable Capacity Distribution</h2>
             <div class="relative h-64 sm:h-96">
                 <canvas id="cableCapacityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Month-wise Cable Type Count (2025) -->
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Cable Type Count by Month (2025)</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="cableTypeMonthChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Month-wise Pipe Size Count (2025) -->
+        <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Pipe Size Count by Month (2025)</h2>
+            <div class="relative h-64 sm:h-96">
+                <canvas id="pipeSizeMonthChart"></canvas>
             </div>
         </div>
     </div>
@@ -164,6 +218,13 @@
         const yearCounts = {{ year_counts|tojson|safe }};
         const cableCapacityLabels = {{ cable_capacity_labels|tojson|safe }};
         const cableCapacityCounts = {{ cable_capacity_counts|tojson|safe }};
+        const cableTypes = {{ cable_types|tojson|safe }};
+        const cableTypeMonthData = {{ cable_type_month_data|tojson|safe }};
+        const pipeSizes = {{ pipe_sizes|tojson|safe }};
+        const pipeSizeMonthData = {{ pipe_size_month_data|tojson|safe }};
+
+        // Color palette for multiple datasets
+        const colors = ['#22c55e', '#ef4444', '#facc15', '#3b82f6', '#a855f7', '#14b8a6', '#f97316'];
 
         // Month-wise NOC ID Chart (2025)
         try {
@@ -250,7 +311,7 @@
                     labels: cableCapacityLabels,
                     datasets: [{
                         data: cableCapacityCounts,
-                        backgroundColor: ['#22c55e', '#ef4444', '#facc15', '#3b82f6', '#a855f7'],
+                        backgroundColor: colors.slice(0, cableCapacityLabels.length),
                         borderColor: '#fff',
                         borderWidth: 2,
                         hoverOffset: 15
@@ -267,6 +328,78 @@
             });
         } catch (error) {
             console.error('Error rendering Cable Capacity Chart:', error);
+        }
+
+        // Month-wise Cable Type Chart (2025)
+        try {
+            const cableTypeMonthCtx = document.getElementById('cableTypeMonthChart').getContext('2d');
+            new Chart(cableTypeMonthCtx, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: cableTypes.map((type, index) => ({
+                        label: type,
+                        data: cableTypeMonthData[type],
+                        backgroundColor: colors[index % colors.length] + '80', // Add opacity
+                        borderColor: colors[index % colors.length],
+                        borderWidth: 1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#4a5568' },
+                            grid: { color: '#e2e8f0' }
+                        },
+                        x: { ticks: { color: '#4a5568' } }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#4a5568', font: { size: 12 } } },
+                        title: { display: true, text: 'Cable Type Count by Month (2025)', color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Cable Type Month Chart:', error);
+        }
+
+        // Month-wise Pipe Size Chart (2025)
+        try {
+            const pipeSizeMonthCtx = document.getElementById('pipeSizeMonthChart').getContext('2d');
+            new Chart(pipeSizeMonthCtx, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: pipeSizes.map((size, index) => ({
+                        label: size + ' in',
+                        data: pipeSizeMonthData[size],
+                        backgroundColor: colors[index % colors.length] + '80', // Add opacity
+                        borderColor: colors[index % colors.length],
+                        borderWidth: 1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#4a5568' },
+                            grid: { color: '#e2e8f0' }
+                        },
+                        x: { ticks: { color: '#4a5568' } }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#4a5568', font: { size: 12 } } },
+                        title: { display: true, text: 'Pipe Size Count by Month (2025)', color: '#2d3748', font: { size: 14 } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error rendering Pipe Size Month Chart:', error);
         }
     });
 </script>
