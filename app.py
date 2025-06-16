@@ -107,19 +107,34 @@ def apply_data_filter(query):
     user_category = session.get('category')
     user_domain = session.get('domain')
 
+    logger.debug(f"Applying filter: role={user_role}, category={user_category}, domain={user_domain}")
+
+    if not all([user_role, user_category, user_domain]):
+        logger.error("Missing session data for filtering")
+        raise ValueError("User session data incomplete")
+
     if user_role == 'master':
         if user_category == 'All' and user_domain == 'All':
-            # Master with full access
+            logger.debug("No filter applied (master, All, All)")
             return query
-        elif user_category != 'All' and user_domain == 'All':
-            # Master with specific category, all domains in that category
+        elif user_category in VALID_CATEGORIES and user_domain == 'All':
             domains = VALID_DOMAINS.get(user_category, [])
+            if not domains:
+                logger.error(f"No valid domains for category: {user_category}")
+                raise ValueError(f"Invalid category: {user_category}")
+            logger.debug(f"Filtering by category={user_category}, domains={domains}")
             return query.filter(FMCInformation.category == user_category, FMCInformation.domain.in_(domains))
         else:
-            # Master with specific category and specific domain
+            if user_category not in VALID_CATEGORIES or user_domain not in VALID_DOMAINS.get(user_category, []):
+                logger.error(f"Invalid category/domain: {user_category}/{user_domain}")
+                raise ValueError("Invalid category or domain")
+            logger.debug(f"Filtering by category={user_category}, domain={user_domain}")
             return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
     else:
-        # Simple user: filter by their assigned category and domain
+        if user_category not in VALID_CATEGORIES or user_domain not in VALID_DOMAINS.get(user_category, []):
+            logger.error(f"Invalid category/domain for user: {user_category}/{user_domain}")
+            raise ValueError("Invalid category or domain for user")
+        logger.debug(f"Non-master: Filtering by category={user_category}, domain={user_domain}")
         return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
 
 # Database Models
@@ -191,9 +206,14 @@ def signup():
             flash('Invalid role')
             return render_template('signup.html')
 
-        if category not in VALID_CATEGORIES + ['All'] or (category != 'All' and domain not in VALID_DOMAINS.get(category, [])) and domain != 'All':
-            flash('Invalid category or domain')
-            return render_template('signup.html')
+        if role == 'master':
+            if category not in VALID_CATEGORIES + ['All'] or (category != 'All' and domain != 'All'):
+                flash('Master users must select "All" or a valid category with domain "All"')
+                return render_template('signup.html')
+        else:
+            if category not in VALID_CATEGORIES or domain not in VALID_DOMAINS.get(category, []):
+                flash('Invalid category or domain')
+                return render_template('signup.html')
 
         try:
             user_data = supabase_service.table('users_info').select('username').eq('username', username).execute()
@@ -454,6 +474,8 @@ def add():
         user_domain = session.get('domain')
         username = session.get('username', 'unknown_user')
 
+        logger.debug(f"Add route: User={username}, Role={user_role}, Category={user_category}, Domain={user_domain}")
+
         if request.method == 'POST':
             category = request.form.get('category')
             domain = request.form.get('domain')
@@ -465,10 +487,15 @@ def add():
 
             if user_role != 'master':
                 if category != user_category or domain != user_domain:
+                    logger.error(f"Non-master user {username} attempted to add data for category={category}, domain={domain}")
                     raise ValueError("You can only add data for your assigned category and domain")
             else:
-                if category not in VALID_CATEGORIES or (domain not in VALID_DOMAINS[category] and domain != 'All'):
-                    raise ValueError("Invalid category or domain")
+                if category not in VALID_CATEGORIES:
+                    logger.error(f"Invalid category selected by master user: {category}")
+                    raise ValueError("Invalid category")
+                if domain not in VALID_DOMAINS[category]:
+                    logger.error(f"Invalid domain selected by master user: category={category}, domain={domain}")
+                    raise ValueError("Please select a specific domain for the chosen category")
 
             # Validate joint types
             joint_types = request.form.getlist('joint_type[]')
@@ -562,16 +589,36 @@ def view_fmc():
 @master_required
 def edit(id):
     try:
+        user_category = session.get('category')
+        username = session.get('username', 'unknown_user')
+        logger.debug(f"Edit route: User={username}, Editing ID={id}, User Category={user_category}")
+
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+
+        if user_category != 'All' and fmc.category != user_category:
+            logger.error(f"Master user {username} attempted to edit entry ID={id} outside their category: {fmc.category}")
+            flash('You can only edit entries within your assigned category')
+            return redirect(url_for('view_fmc'))
+
         if request.method == 'POST':
-            fmc.category = request.form.get('category')
-            fmc.domain = request.form.get('domain')
+            category = request.form.get('category')
+            domain = request.form.get('domain')
+
+            if category not in VALID_CATEGORIES:
+                logger.error(f"Invalid category in edit: {category}")
+                raise ValueError("Invalid category")
+            if domain not in VALID_DOMAINS[category]:
+                logger.error(f"Invalid domain in edit: category={category}, domain={domain}")
+                raise ValueError("Please select a specific domain for the chosen category")
+
+            fmc.category = category
+            fmc.domain = domain
             fmc.cable_cut_noc_id = request.form.get('cable_cut_noc_id') or None
             fmc.cable_used_meters = safe_float(request.form.get('cable_used_meters'), 'cable_used_meters') if request.form.get('cable_used_meters') else None
             fmc.cable_type = request.form.get('cable_type') or None
             fmc.cable_capacity = request.form.get('cable_capacity') or None
             fmc.no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
-            fmc.updated_by = session.get('username', 'unknown_user')
+            fmc.updated_by = username
             fmc.updated_at = datetime.utcnow()
 
             # Validate joint types
@@ -609,9 +656,6 @@ def edit(id):
                 )
                 db.session.add(pipe)
 
-            if fmc.category not in VALID_CATEGORIES or (fmc.domain not in VALID_DOMAINS[fmc.category] and fmc.domain != 'All'):
-                raise ValueError("Invalid category or domain")
-
             db.session.commit()
             flash('Data updated successfully!', 'success')
             return redirect(url_for('view_fmc'))
@@ -629,7 +673,17 @@ def edit(id):
 @master_required
 def delete(id):
     try:
+        user_category = session.get('category')
+        username = session.get('username', 'unknown_user')
+        logger.debug(f"Delete route: User={username}, Deleting ID={id}, User Category={user_category}")
+
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+
+        if user_category != 'All' and fmc.category != user_category:
+            logger.error(f"Master user {username} attempted to delete entry ID={id} outside their category: {fmc.category}")
+            flash('You can only delete entries within your assigned category')
+            return redirect(url_for('view_fmc'))
+
         db.session.delete(fmc)
         db.session.commit()
         flash('Data deleted successfully!', 'success')
