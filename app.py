@@ -15,7 +15,7 @@ import requests
 from uuid import uuid4
 import pandas as pd
 from io import BytesIO
-import pytz  # Added for PKT timezone
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -41,8 +41,8 @@ logger.setLevel(logging.DEBUG)
 
 # Supabase setup
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY')  # anon/public
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')  # service_role
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 
 if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY]):
     raise ValueError("SUPABASE_URL, SUPABASE_KEY, and SUPABASE_SERVICE_KEY must be set")
@@ -107,17 +107,30 @@ def apply_data_filter(query):
     user_category = session.get('category')
     user_domain = session.get('domain')
 
+    logger.debug(f"Applying filter: role={user_role}, category={user_category}, domain={user_domain}")
+
     if user_role == 'master':
         if user_category == 'All' and user_domain == 'All':
+            logger.debug("No filter applied (master, All, All)")
             return query
-        elif user_category == 'Longhaul' and user_domain == 'All':
-            return query.filter(FMCInformation.category == 'Longhaul', FMCInformation.domain.in_(VALID_DOMAINS['Longhaul']))
-        elif user_category == 'GPON_FMC' and user_domain == 'All':
-            return query.filter(FMCInformation.category == 'GPON_FMC', FMCInformation.domain.in_(VALID_DOMAINS['GPON_FMC']))
+        elif user_category in VALID_CATEGORIES and user_domain == 'All':
+            logger.debug(f"Filtering by category={user_category}, all domains in {VALID_DOMAINS[user_category]}")
+            return query.filter(
+                FMCInformation.category == user_category,
+                FMCInformation.domain.in_(VALID_DOMAINS[user_category])
+            )
         else:
-            return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+            logger.debug(f"Filtering by category={user_category}, domain={user_domain}")
+            return query.filter(
+                FMCInformation.category == user_category,
+                FMCInformation.domain == user_domain
+            )
     else:
-        return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+        logger.debug(f"Non-master: Filtering by category={user_category}, domain={user_domain}")
+        return query.filter(
+            FMCInformation.category == user_category,
+            FMCInformation.domain == user_domain
+        )
 
 # Database Models
 class FMCInformation(db.Model):
@@ -409,17 +422,20 @@ def index():
         logger.debug(f"User: {username}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
 
         # Base query for FMC entries
-        query = FMCInformation.query
-        query = apply_data_filter(query)
-        entries = query.order_by(FMCInformation.created_at.desc()).limit(5).all()
+        base_query = FMCInformation.query
+        filtered_query = apply_data_filter(base_query)
+        entries = filtered_query.order_by(FMCInformation.created_at.desc()).limit(5).all()
 
-        # Summary statistics
-        total_entries = apply_data_filter(FMCInformation.query).count()
-        longhaul_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'Longhaul')).count()
-        gpon_fmc_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'GPON_FMC')).count()
-        total_cable_used = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
-        total_joints = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
-        total_pipe_used = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation)).with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+        # Summary statistics using filtered query
+        total_entries = filtered_query.count()
+        longhaul_count = filtered_query.filter(FMCInformation.category == 'Longhaul').count()
+        gpon_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
+        total_cable_used = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
+        total_joints = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
+        pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
+        total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+
+        logger.debug(f"Stats: Total={total_entries}, Longhaul={longhaul_count}, GPON_FMC={gpon_fmc_count}, Cable={total_cable_used}, Joints={total_joints}, Pipe={total_pipe_used}")
 
         return render_template(
             'index.html',
@@ -675,17 +691,14 @@ def export_fmc():
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
         data = query.order_by(FMCInformation.created_at.desc()).all()
-        pkt_tz = pytz.timezone('Asia/Karachi')  # Pakistan Standard Time (PKT)
+        pkt_tz = pytz.timezone('Asia/Karachi')
         records = []
         for fmc in data:
-            # Convert UTC to PKT
             created_at_pkt = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
             updated_at_pkt = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
             
-            # Format joint types as a comma-separated string
             joint_types_str = ', '.join(jt.joint_type for jt in fmc.joint_types) if fmc.joint_types else '-'
             
-            # Get pipe information
             pipe_info = fmc.pipe_info[0] if fmc.pipe_info else None
             pipe_used_meters = f'{pipe_info.pipe_used_meters:.2f}' if pipe_info and pipe_info.pipe_used_meters else '-'
             pipe_size_inches = f'{pipe_info.pipe_size_inches:.2f}' if pipe_info and pipe_info.pipe_size_inches else '-'
