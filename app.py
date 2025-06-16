@@ -1,7 +1,7 @@
 import os
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
-from supabase import create_client, Client, ClientError
+from supabase import create_client, Client  # Removed ClientError
 from functools import wraps
 import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, send_file
