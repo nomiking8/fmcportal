@@ -411,15 +411,72 @@ def index():
         # Base query for FMC entries
         query = FMCInformation.query
         query = apply_data_filter(query)
+
+        # Recent entries for table
         entries = query.order_by(FMCInformation.created_at.desc()).limit(5).all()
 
         # Summary statistics
-        total_entries = apply_data_filter(FMCInformation.query).count()
-        longhaul_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'Longhaul')).count()
-        gpon_fmc_count = apply_data_filter(FMCInformation.query.filter(FMCInformation.category == 'GPON_FMC')).count()
-        total_cable_used = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
-        total_joints = apply_data_filter(FMCInformation.query).with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
-        total_pipe_used = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation)).with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+        total_entries = query.count()
+        longhaul_count = query.filter(FMCInformation.category == 'Longhaul').count()
+        gpon_fmc_count = query.filter(FMCInformation.category == 'GPON_FMC').count()
+        total_cable_used = query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
+        total_joints = query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
+        total_pipe_used = db.session.query(PipeInformation).join(FMCInformation).filter(
+            apply_data_filter(FMCInformation.query).subquery()
+        ).with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+
+        # Category counts
+        category_counts = query.with_entities(
+            FMCInformation.category, db.func.count(FMCInformation.id)
+        ).group_by(FMCInformation.category).all()
+        category_labels = [c[0] for c in category_counts]
+        category_counts = [c[1] for c in category_counts]
+
+        # Domain counts
+        domain_counts = query.with_entities(
+            FMCInformation.domain, db.func.count(FMCInformation.id)
+        ).group_by(FMCInformation.domain).all()
+        domain_labels = [d[0] for d in domain_counts]
+        domain_counts = [d[1] for d in domain_counts]
+
+        # Cable Type distribution
+        cable_type_counts = query.with_entities(
+            FMCInformation.cable_type, db.func.count(FMCInformation.id)
+        ).group_by(FMCInformation.cable_type).all()
+        cable_type_labels = [ct[0] or 'Unknown' for ct in cable_type_counts]
+        cable_type_counts = [ct[1] for ct in cable_type_counts]
+
+        # Pipe Type distribution
+        pipe_type_counts = db.session.query(
+            PipeInformation.pipe_type, db.func.count(PipeInformation.id)
+        ).join(FMCInformation).filter(
+            apply_data_filter(FMCInformation.query).subquery()
+        ).group_by(PipeInformation.pipe_type).all()
+        pipe_type_labels = [pt[0] or 'Unknown' for pt in pipe_type_counts]
+        pipe_type_counts = [pt[1] for pt in pipe_type_counts]
+
+        # NOC ID count by year (in PKT)
+        pkt_tz = pytz.timezone('Asia/Karachi')
+        year_counts_query = query.with_entities(
+            db.extract('year', db.func.timezone('Asia/Karachi', FMCInformation.created_at)),
+            db.func.count(FMCInformation.cable_cut_noc_id)
+        ).group_by(db.extract('year', db.func.timezone('Asia/Karachi', FMCInformation.created_at))).all()
+        year_labels = [int(y[0]) for y in year_counts_query]
+        year_counts = [y[1] for y in year_counts_query]
+
+        # Monthly trend (last 12 months)
+        monthly_counts = []
+        monthly_labels = []
+        today_pkt = datetime.now(pkt_tz)
+        for i in range(11, -1, -1):
+            month_start = (today_pkt - timedelta(days=30 * i)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=31)).replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
+            count = query.filter(
+                FMCInformation.created_at >= month_start.astimezone(pytz.UTC),
+                FMCInformation.created_at <= month_end.astimezone(pytz.UTC)
+            ).count()
+            monthly_labels.append(month_start.strftime('%b %Y'))
+            monthly_counts.append(count)
 
         return render_template(
             'index.html',
@@ -430,6 +487,18 @@ def index():
             total_cable_used=total_cable_used,
             total_joints=total_joints,
             total_pipe_used=total_pipe_used,
+            category_labels=category_labels,
+            category_counts=category_counts,
+            domain_labels=domain_labels,
+            domain_counts=domain_counts,
+            cable_type_labels=cable_type_labels,
+            cable_type_counts=cable_type_counts,
+            pipe_type_labels=pipe_type_labels,
+            pipe_type_counts=pipe_type_counts,
+            year_labels=year_labels,
+            year_counts=year_counts,
+            monthly_labels=monthly_labels,
+            monthly_counts=monthly_counts,
             user_role=user_role,
             user_category=user_category,
             user_domain=user_domain
