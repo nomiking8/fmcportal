@@ -441,60 +441,94 @@ def index():
         # Summary statistics
         total_entries = filtered_query.count()
         longhaul_count = filtered_query.filter(FMCInformation.category == 'Longhaul').count()
-        gpon_count_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
+        gpon_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
         total_cable_used = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0)).scalar()
         total_joints = filtered_query.with_entities(db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0)).scalar()
+
         pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
-        total_pipe = pipe_used.query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
+        total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
         # Cable type counts
-        cable_type_counts = filtered_query.filter(FMCInformation.cable_type.isnot(None))\
-            .with_entities(FMCInformation.cable_type, db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by(FMCInformation.cable_type)\
+        cable_type_counts = dict(
+            filtered_query.filter(FMCInformation.cable_type.isnot(None))
+            .with_entities(FMCInformation.cable_type, db.func.count(FMCInformation.cable_cut_noc_id))
+            .group_by(FMCInformation.cable_type)
             .all()
+        )
         # Pipe size counts
-        pipe_size_counts = pipe_query.filter(PipeInformation.pipe_size_inches.isnot(None))\
-            .with_entities(PipeInformation.pipe_size_inches, db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by(PipeInformation.pipe_size)
+        pipe_size_counts = dict(
+            pipe_query.filter(PipeInformation.pipe_size_inches.isnot(None))
+            .with_entities(PipeInformation.pipe_size_inches, db.func.count(PipeInformation.id))
+            .group_by(PipeInformation.pipe_size_inches)
             .all()
+        )
 
         # Month-wise NOC ID counts for 2025
-        month_counts = filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)\
-            .with_entities(db.func.to_char(FMCInformation.created_at, 'MM').label('month'), db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by('month')\
-            .order_by('month')\
+        month_counts = (
+            filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
+            .with_entities(
+                db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('month')
+            .order_by('month')
             .all()
+        )
         month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         month_data = [0] * 12
-        for month in month_counts:
+        for month, count in month_counts:
             month_data[int(month) - 1] = count
 
         # Month-wise Cable Type counts for 2025
-        cable_type_month_counts = filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025, FMCInformation.cable_type.isnot(None))\
-            .with_entities(db.func.to_char(FMCInformation.created_at, 'MM').label('month'), FMCInformation.cable_type, db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by('month', FMCInformation.cable_type)\
-            .order_by('month')\
+        cable_type_month_counts = (
+            filtered_query.filter(
+                db.extract('year', FMCInformation.created_at) == 2025,
+                FMCInformation.cable_type.isnot(None)
+            )
+            .with_entities(
+                db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                FMCInformation.cable_type,
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('month', FMCInformation.cable_type)
+            .order_by('month')
             .all()
+        )
         cable_types = sorted(set(row[1] for row in cable_type_month_counts))
         cable_type_month_data = {c_type: [0] * 12 for c_type in cable_types}
         for month, c_type, count in cable_type_month_counts:
             cable_type_month_data[c_type][int(month) - 1] = count
 
         # Month-wise Pipe Size counts for 2025
-        pipe_size_month_counts = pipe_query.filter(db.extract('year', FMCInformation.created_at) == 2025, PipeInformation.pipe_size_inches.isnot(None))\
-            .with_entities(db.func.to_char(FMCInformation.created_at, 'MM').label('month'), PipeInformation.pipe_size_inches, db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by('month', PipeInformation.pipe_size_inches)\
-            .order_by('month')\
+        pipe_size_month_counts = (
+            pipe_query.filter(
+                db.extract('year', FMCInformation.created_at) == 2025,
+                PipeInformation.pipe_size_inches.isnot(None)
+            )
+            .with_entities(
+                db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                PipeInformation.pipe_size_inches,
+                db.func.count(PipeInformation.id)
+            )
+            .group_by('month', PipeInformation.pipe_size_inches)
+            .order_by('month')
             .all()
+        )
         pipe_sizes = sorted(set(row[1] for row in pipe_size_month_counts), key=float)
         pipe_size_month_data = {str(size): [0] * 12 for size in pipe_sizes}
         for month, size, count in pipe_size_month_counts:
             pipe_size_month_data[str(size)][int(month) - 1] = count
 
         # Yearly NOC ID totals
-        year_counts = filtered_query.with_entities(db.extract('year', FMCInformation.created_at).label('year'), db.func.count(FMCInformation.cable_cut_noc_id))\
-            .group_by('year')\
+        year_counts = (
+            filtered_query
+            .with_entities(
+                db.extract('year', FMCInformation.created_at).label('year'),
+                db.func.count(FMCInformation.cable_cut_noc_id)
+            )
+            .group_by('year')
             .all()
+        )
         year_labels = ['2024', '2025']
         year_data = [0] * len(year_labels)
         for year, count in year_counts:
@@ -502,17 +536,27 @@ def index():
                 year_data[year_labels.index(str(int(year)))] = count
 
         # Cable capacity distribution
-        cable_capacity_rows = filtered_query.filter(FMCInformation.cable_capacity.isnot(None))\
-            .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))\
-            .group_by(FMCInformation.cable_capacity)\
+        cable_capacity_rows = (
+            filtered_query.filter(FMCInformation.cable_capacity.isnot(None))
+            .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))
+            .group_by(FMCInformation.cable_capacity)
             .all()
+        )
         cable_capacity_labels = [row[0] for row in cable_capacity_rows]
         cable_capacity_data = [float(row[1]) for row in cable_capacity_rows]
 
-        logger.debug(f"Stats: Total={total_entries}, Longhaul={longhaul_count}, GPON_FMC={gpon_fmc_count}, Cable={total_cable_used}, Joints={total_joints}, Pipe={total_pipe_used}")
-        logger.debug(f"Month counts: {month_data}, Year counts: {year_data}, Cable capacity: {dict(zip(cable_capacity_labels, cable_capacity_data))}")
-        logger.debug(f"Cable type counts: {dict(cable_type_counts)}, Pipe size counts: {dict(pipe_size_counts)}")
-        logger.debug(f"Cable type month data: {cable_type_month_data}, Pipe size month data: {pipe_size_month_data}")
+        logger.debug(
+            f"Stats: Total={total_entries}, Longhaul={longhaul_count}, GPON_FMC={gpon_fmc_count}, Cable={total_cable_used}, Joints={total_joints}, Pipe={total_pipe_used}"
+        )
+        logger.debug(
+            f"Month counts: {month_data}, Year counts: {year_data}, Cable capacity: {dict(zip(cable_capacity_labels, cable_capacity_data))}"
+        )
+        logger.debug(
+            f"Cable type counts: {cable_type_counts}, Pipe size counts: {pipe_size_counts}"
+        )
+        logger.debug(
+            f"Cable type month data: {cable_type_month_data}, Pipe size month data: {pipe_size_month_data}"
+        )
 
         return render_template(
             'index.html',
@@ -529,8 +573,8 @@ def index():
             year_counts=year_data,
             cable_capacity_labels=cable_capacity_labels,
             cable_capacity_counts=cable_capacity_data,
-            cable_type_counts=dict(cable_type_counts),
-            pipe_size_counts=dict(pipe_size_counts),
+            cable_type_counts=cable_type_counts,
+            pipe_size_counts=pipe_size_counts,
             cable_types=cable_types,
             cable_type_month_data=cable_type_month_data,
             pipe_sizes=[str(size) for size in pipe_sizes],
