@@ -5,7 +5,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Main Content -->
 <main class="container mx-auto px-4 py-6">
     <h2 class="text-3xl font-bold mb-6 text-gray-800">FMC Store Analytics</h2>
 
@@ -15,9 +14,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-purple-500 to-indigo-700 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-purple-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Total NOC IDs</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ total_entries }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
@@ -35,9 +32,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-blue-500 to-teal-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-blue-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Total Cable Used</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-green-300">{{ "%.2f" | format(total_cable_used) }} m</p>
             <p class="text-sm text-gray-100">Total Meters of Cable Deployed</p>
@@ -46,9 +41,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-red-500 to-orange-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-red-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Total Joints</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-4 4v8m-8-4h16"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-4 4v8m-8-4h16"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-200">{{ total_joints }}</p>
             <p class="text-sm text-gray-100">Number of Joints Used</p>
@@ -57,9 +50,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-green-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Total Pipe Used</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 11h16M4 15h16"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 11h16M4 15h16"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ "%.2f" | format(total_pipe_used) }} m</p>
             <p class="text-sm text-gray-100">Total Meters of Pipe Deployed</p>
@@ -68,9 +59,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-yellow-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Entries by Cable Type</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ cable_type_counts.values() | sum }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
@@ -86,9 +75,7 @@
         <div class="backdrop-blur-md bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-teal-300">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">Entries by Pipe Size</h2>
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             </div>
             <p class="text-2xl sm:text-4xl font-bold mt-2 text-yellow-300">{{ pipe_size_counts.values() | sum }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
@@ -119,7 +106,6 @@
     </div>
 
     <!-- Charts Section -->
-    <!-- ... (your existing chart section as before) ... -->
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
         <!-- Month-wise NOC ID Count (2025) -->
         <div class="backdrop-blur-md bg-white/30 rounded-xl p-4 sm:p-6 shadow-lg animate-bounce-in">
@@ -196,26 +182,12 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Include Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
-    /* Custom Animations */
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    @keyframes bounceIn {
-        0% { transform: scale(0.9); opacity: 0; }
-        50% { transform: scale(1.05); opacity: 0.7; }
-        70% { transform: scale(0.95); }
-        100% { transform: scale(1); opacity: 1; }
-    }
-    .animate-fade-in {
-        animation: fadeIn 0.8s ease-in-out;
-    }
-    .animate-bounce-in {
-        animation: bounceIn 0.8s ease-out;
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes bounceIn { 0% { transform: scale(0.9); opacity: 0; } 50% { transform: scale(1.05); opacity: 0.7; } 70% { transform: scale(0.95); } 100% { transform: scale(1); opacity: 1; } }
+    .animate-fade-in { animation: fadeIn 0.8s ease-in-out; }
+    .animate-bounce-in { animation: bounceIn 0.8s ease-out; }
 </style>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -231,10 +203,112 @@
         const pipeSizes = {{ pipe_sizes|tojson|safe }};
         const pipeSizeMonthData = {{ pipe_size_month_data|tojson|safe }};
 
-        // Color palette for multiple datasets
-        const colors = ['#22c55e', '#ef4444', '#facc15', '#3b82f6', '#a855f7', '#14b8a6', '#f97316'];
+        // New for NOC by cat/domain
+        const nocByCategory = {{ noc_by_category|tojson|safe }};
+        const nocCategoryYearLabels = {{ noc_category_year_labels|tojson|safe }};
+        const nocCategoryYearCats = {{ noc_category_year_cats|tojson|safe }};
+        const nocCategoryYearData = {{ noc_category_year_data|tojson|safe }};
+        const nocCategoryMonthCats = {{ noc_category_month_cats|tojson|safe }};
+        const nocCategoryMonthData = {{ noc_category_month_data|tojson|safe }};
+        const nocByDomain = {{ noc_by_domain|tojson|safe }};
+        const nocDomainYearLabels = {{ noc_domain_year_labels|tojson|safe }};
+        const nocDomainYearDoms = {{ noc_domain_year_doms|tojson|safe }};
+        const nocDomainYearData = {{ noc_domain_year_data|tojson|safe }};
+        const nocDomainMonthDoms = {{ noc_domain_month_doms|tojson|safe }};
+        const nocDomainMonthData = {{ noc_domain_month_data|tojson|safe }};
 
-        // Month-wise NOC ID Chart (2025)
+        const colors = ['#22c55e', '#ef4444', '#facc15', '#3b82f6', '#a855f7', '#14b8a6', '#f97316', '#6366f1', '#06b6d4', '#f59e42', '#dc2626', '#22c55e', '#eab308', '#a21caf', '#c026d3', '#0ea5e9', '#f43f5e', '#16a34a', '#e11d48'];
+
+        // NOC by Category Pie
+        if (Object.keys(nocByCategory).length) {
+            new Chart(document.getElementById('nocByCategoryChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(nocByCategory),
+                    datasets: [{
+                        data: Object.values(nocByCategory),
+                        backgroundColor: colors,
+                    }]
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID Count by Category" } } }
+            });
+        }
+        // NOC by Category Yearwise
+        if (nocCategoryYearCats.length && nocCategoryYearLabels.length) {
+            new Chart(document.getElementById('nocByCategoryYearChart'), {
+                type: 'bar',
+                data: {
+                    labels: nocCategoryYearLabels,
+                    datasets: nocCategoryYearCats.map((cat, i) => ({
+                        label: cat,
+                        data: nocCategoryYearData[cat],
+                        backgroundColor: colors[i % colors.length]
+                    }))
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID by Category and Year" } }, responsive: true }
+            });
+        }
+        // NOC by Category Monthwise (2025)
+        if (nocCategoryMonthCats.length && monthLabels.length) {
+            new Chart(document.getElementById('nocByCategoryMonthChart'), {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: nocCategoryMonthCats.map((cat, i) => ({
+                        label: cat,
+                        data: nocCategoryMonthData[cat],
+                        backgroundColor: colors[i % colors.length]
+                    }))
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID by Category and Month (2025)" } }, responsive: true }
+            });
+        }
+        // NOC by Domain Pie
+        if (Object.keys(nocByDomain).length) {
+            new Chart(document.getElementById('nocByDomainChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(nocByDomain),
+                    datasets: [{
+                        data: Object.values(nocByDomain),
+                        backgroundColor: colors,
+                    }]
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID Count by Domain" } } }
+            });
+        }
+        // NOC by Domain Yearwise
+        if (nocDomainYearDoms.length && nocDomainYearLabels.length) {
+            new Chart(document.getElementById('nocByDomainYearChart'), {
+                type: 'bar',
+                data: {
+                    labels: nocDomainYearLabels,
+                    datasets: nocDomainYearDoms.map((dom, i) => ({
+                        label: dom,
+                        data: nocDomainYearData[dom],
+                        backgroundColor: colors[i % colors.length]
+                    }))
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID by Domain and Year" } }, responsive: true }
+            });
+        }
+        // NOC by Domain Monthwise (2025)
+        if (nocDomainMonthDoms.length && monthLabels.length) {
+            new Chart(document.getElementById('nocByDomainMonthChart'), {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: nocDomainMonthDoms.map((dom, i) => ({
+                        label: dom,
+                        data: nocDomainMonthData[dom],
+                        backgroundColor: colors[i % colors.length]
+                    }))
+                },
+                options: { plugins: { title: { display: true, text: "NOC ID by Domain and Month (2025)" } }, responsive: true }
+            });
+        }
+
+        // --- Your original chart code (Month NOC, Year NOC, Cable Capacity, Cable Type Month, Pipe Size Month) ---
         try {
             const monthNocCtx = document.getElementById('monthNocChart').getContext('2d');
             new Chart(monthNocCtx, {
@@ -255,11 +329,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#4a5568' },
-                            grid: { color: '#e2e8f0' }
-                        },
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
                         x: { ticks: { color: '#4a5568' } }
                     },
                     plugins: {
@@ -268,11 +338,8 @@
                     }
                 }
             });
-        } catch (error) {
-            console.error('Error rendering Month NOC Chart:', error);
-        }
+        } catch (error) { console.error('Error rendering Month NOC Chart:', error); }
 
-        // Yearly NOC ID Chart
         try {
             const yearNocCtx = document.getElementById('yearNocChart').getContext('2d');
             new Chart(yearNocCtx, {
@@ -293,11 +360,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#4a5568' },
-                            grid: { color: '#e2e8f0' }
-                        },
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
                         x: { ticks: { color: '#4a5568' } }
                     },
                     plugins: {
@@ -306,11 +369,8 @@
                     }
                 }
             });
-        } catch (error) {
-            console.error('Error rendering Year NOC Chart:', error);
-        }
+        } catch (error) { console.error('Error rendering Year NOC Chart:', error); }
 
-        // Cable Capacity Distribution Pie Chart
         try {
             const cableCapacityCtx = document.getElementById('cableCapacityChart').getContext('2d');
             new Chart(cableCapacityCtx, {
@@ -334,11 +394,8 @@
                     }
                 }
             });
-        } catch (error) {
-            console.error('Error rendering Cable Capacity Chart:', error);
-        }
+        } catch (error) { console.error('Error rendering Cable Capacity Chart:', error); }
 
-        // Month-wise Cable Type Chart (2025)
         try {
             const cableTypeMonthCtx = document.getElementById('cableTypeMonthChart').getContext('2d');
             new Chart(cableTypeMonthCtx, {
@@ -348,7 +405,7 @@
                     datasets: cableTypes.map((type, index) => ({
                         label: type,
                         data: cableTypeMonthData[type],
-                        backgroundColor: colors[index % colors.length] + '80', // Add opacity
+                        backgroundColor: colors[index % colors.length] + '80',
                         borderColor: colors[index % colors.length],
                         borderWidth: 1
                     }))
@@ -357,11 +414,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#4a5568' },
-                            grid: { color: '#e2e8f0' }
-                        },
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
                         x: { ticks: { color: '#4a5568' } }
                     },
                     plugins: {
@@ -370,11 +423,8 @@
                     }
                 }
             });
-        } catch (error) {
-            console.error('Error rendering Cable Type Month Chart:', error);
-        }
+        } catch (error) { console.error('Error rendering Cable Type Month Chart:', error); }
 
-        // Month-wise Pipe Size Chart (2025)
         try {
             const pipeSizeMonthCtx = document.getElementById('pipeSizeMonthChart').getContext('2d');
             new Chart(pipeSizeMonthCtx, {
@@ -384,7 +434,7 @@
                     datasets: pipeSizes.map((size, index) => ({
                         label: size + ' in',
                         data: pipeSizeMonthData[size],
-                        backgroundColor: colors[index % colors.length] + '80', // Add opacity
+                        backgroundColor: colors[index % colors.length] + '80',
                         borderColor: colors[index % colors.length],
                         borderWidth: 1
                     }))
@@ -393,11 +443,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#4a5568' },
-                            grid: { color: '#e2e8f0' }
-                        },
+                        y: { beginAtZero: true, ticks: { color: '#4a5568' }, grid: { color: '#e2e8f0' } },
                         x: { ticks: { color: '#4a5568' } }
                     },
                     plugins: {
@@ -406,9 +452,7 @@
                     }
                 }
             });
-        } catch (error) {
-            console.error('Error rendering Pipe Size Month Chart:', error);
-        }
+        } catch (error) { console.error('Error rendering Pipe Size Month Chart:', error); }
     });
 </script>
 {% endblock %}
