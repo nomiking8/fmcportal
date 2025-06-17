@@ -1005,5 +1005,382 @@ def export_fmc():
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
 
+# ... Existing imports and code ...
+
+# New API Routes
+@app.route('/api/fmc', methods=['GET'])
+@login_required
+def get_fmc_list():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '').strip()
+
+        query = FMCInformation.query
+        query = apply_data_filter(query)
+
+        if search:
+            query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
+
+        pagination = query.order_by(FMCInformation.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        entries = pagination.items
+
+        return jsonify({
+            'entries': [{
+                'id': fmc.id,
+                'category': fmc.category,
+                'domain': fmc.domain,
+                'cable_cut_noc_id': fmc.cable_cut_noc_id,
+                'cable_used_meters': fmc.cable_used_meters,
+                'cable_type': fmc.cable_type,
+                'cable_capacity': fmc.cable_capacity,
+                'no_of_joints': fmc.no_of_joints,
+                'created_by': fmc.created_by,
+                'created_at': fmc.created_at.isoformat(),
+                'updated_by': fmc.updated_by,
+                'updated_at': fmc.updated_at.isoformat(),
+                'joint_types': [{'id': jt.id, 'joint_type': jt.joint_type} for jt in fmc.joint_types],
+                'pipe_info': [{
+                    'id': pi.id,
+                    'pipe_used_meters': pi.pipe_used_meters,
+                    'pipe_size_inches': pi.pipe_size_inches,
+                    'pipe_type': pi.pipe_type
+                } for pi in fmc.pipe_info]
+            } for fmc in entries],
+            'total_pages': pagination.pages,
+            'current_page': pagination.page,
+            'total_items': pagination.total
+        })
+    except Exception as e:
+        logger.error(f"Error in get_fmc_list: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/fmc', methods=['POST'])
+@login_required
+def add_fmc():
+    try:
+        user_role = session.get('role')
+        user_category = session.get('category')
+        user_domain = session.get('domain')
+        username = session.get('username', 'unknown_user')
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON data'}), 400
+
+        category = data.get('category')
+        domain = data.get('domain')
+        cable_cut_noc_id = data.get('cable_cut_noc_id')
+        cable_used_meters = data.get('cable_used_meters')
+        cable_type = data.get('cable_type')
+        cable_capacity = data.get('cable_capacity')
+        no_of_joints = data.get('no_of_joints')
+        joint_types = data.get('joint_types', [])
+        pipe_info = data.get('pipe_info', {})
+
+        if not all([category, domain]):
+            return jsonify({'error': 'Category and domain are required'}), 400
+
+        if user_role != 'master':
+            if category != user_category or domain != user_domain:
+                logger.error(f"Non-master user {username} attempted to add data for category={category}, domain={domain}")
+                return jsonify({'error': 'You can only add data for your assigned category and domain'}), 403
+        else:
+            if category not in VALID_CATEGORIES or domain not in VALID_DOMAINS[category]:
+                logger.error(f"Invalid category/domain by master user: {category}/{domain}")
+                return jsonify({'error': 'Invalid category or domain'}), 400
+
+        if no_of_joints is not None:
+            try:
+                no_of_joints = int(no_of_joints)
+                if len(joint_types) != no_of_joints:
+                    return jsonify({'error': f"Number of joint types ({len(joint_types)}) does not match number of joints ({no_of_joints})"}), 400
+            except ValueError:
+                return jsonify({'error': 'Invalid number of joints'}), 400
+
+        if cable_used_meters is not None:
+            try:
+                cable_used_meters = float(cable_used_meters)
+            except ValueError:
+                return jsonify({'error': 'Invalid cable used meters'}), 400
+
+        fmc = FMCInformation(
+            region='RTR',
+            category=category,
+            domain=domain,
+            cable_cut_noc_id=cable_cut_noc_id,
+            cable_used_meters=cable_used_meters,
+            cable_type=cable_type,
+            cable_capacity=cable_capacity,
+            no_of_joints=no_of_joints,
+            created_by=username,
+            updated_by=username,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.session.add(fmc)
+        db.session.flush()
+
+        for jt in joint_types:
+            joint = JointType(
+                fmc_id=fmc.id,
+                joint_type=jt,
+                created_by=username,
+                updated_by=username,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(joint)
+
+        if any([pipe_info.get('pipe_used_meters'), pipe_info.get('pipe_size_inches'), pipe_info.get('pipe_type')]):
+            try:
+                pipe_used_meters = float(pipe_info.get('pipe_used_meters')) if pipe_info.get('pipe_used_meters') else None
+                pipe_size_inches = float(pipe_info.get('pipe_size_inches')) if pipe_info.get('pipe_size_inches') else None
+            except ValueError:
+                return jsonify({'error': 'Invalid pipe measurements'}), 400
+            pipe = PipeInformation(
+                fmc_id=fmc.id,
+                pipe_used_meters=pipe_used_meters,
+                pipe_size_inches=pipe_size_inches,
+                pipe_type=pipe_info.get('pipe_type'),
+                created_by=username,
+                updated_by=username,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(pipe)
+
+        db.session.commit()
+        return jsonify({'message': 'FMC entry added successfully', 'id': fmc.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in add_fmc: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/fmc/<int:id>', methods=['PUT'])
+@master_required
+def update_fmc(id):
+    try:
+        user_category = session.get('category')
+        username = session.get('username', 'unknown_user')
+
+        fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        if user_category != 'All' and fmc.category != user_category:
+            logger.error(f"Master user {username} attempted to edit entry ID={id} outside their category: {fmc.category}")
+            return jsonify({'error': 'You can only edit entries within your assigned category'}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON data'}), 400
+
+        category = data.get('category')
+        domain = data.get('domain')
+        cable_cut_noc_id = data.get('cable_cut_noc_id')
+        cable_used_meters = data.get('cable_used_meters')
+        cable_type = data.get('cable_type')
+        cable_capacity = data.get('cable_capacity')
+        no_of_joints = data.get('no_of_joints')
+        joint_types = data.get('joint_types', [])
+        pipe_info = data.get('pipe_info', {})
+
+        if not all([category, domain]):
+            return jsonify({'error': 'Category and domain are required'}), 400
+
+        if category not in VALID_CATEGORIES or domain not in VALID_DOMAINS[category]:
+            logger.error(f"Invalid category/domain: {category}/{domain}")
+            return jsonify({'error': 'Invalid category or domain'}), 400
+
+        if no_of_joints is not None:
+            try:
+                no_of_joints = int(no_of_joints)
+                if len(joint_types) != no_of_joints:
+                    return jsonify({'error': f"Number of joint types ({len(joint_types)}) does not match number of joints ({no_of_joints})"}), 400
+            except ValueError:
+                return jsonify({'error': 'Invalid number of joints'}), 400
+
+        if cable_used_meters is not None:
+            try:
+                cable_used_meters = float(cable_used_meters)
+            except ValueError:
+                return jsonify({'error': 'Invalid cable used meters'}), 400
+
+        fmc.category = category
+        fmc.domain = domain
+        fmc.cable_cut_noc_id = cable_cut_noc_id
+        fmc.cable_used_meters = cable_used_meters
+        fmc.cable_type = cable_type
+        fmc.cable_capacity = cable_capacity
+        fmc.no_of_joints = no_of_joints
+        fmc.updated_by = username
+        fmc.updated_at = datetime.utcnow()
+
+        db.session.query(JointType).filter_by(fmc_id=fmc.id).delete()
+        for jt in joint_types:
+            joint = JointType(
+                fmc_id=fmc.id,
+                joint_type=jt,
+                created_by=username,
+                updated_by=username,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(joint)
+
+        db.session.query(PipeInformation).filter_by(fmc_id=fmc.id).delete()
+        if any([pipe_info.get('pipe_used_meters'), pipe_info.get('pipe_size_inches'), pipe_info.get('pipe_type')]):
+            try:
+                pipe_used_meters = float(pipe_info.get('pipe_used_meters')) if pipe_info.get('pipe_used_meters') else None
+                pipe_size_inches = float(pipe_info.get('pipe_size_inches')) if pipe_info.get('pipe_size_inches') else None
+            except ValueError:
+                return jsonify({'error': 'Invalid pipe measurements'}), 400
+            pipe = PipeInformation(
+                fmc_id=fmc.id,
+                pipe_used_meters=pipe_used_meters,
+                pipe_size_inches=pipe_size_inches,
+                pipe_type=pipe_info.get('pipe_type'),
+                created_by=username,
+                updated_by=username,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(pipe)
+
+        db.session.commit()
+        return jsonify({'message': 'FMC entry updated successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in update_fmc: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/fmc/<int:id>', methods=['DELETE'])
+@master_required
+def delete_fmc(id):
+    try:
+        user_category = session.get('category')
+        username = session.get('username', 'unknown_user')
+
+        fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        if user_category != 'All' and fmc.category != user_category:
+            logger.error(f"Master user {username} attempted to delete entry ID={id} outside their category: {fmc.category}")
+            return jsonify({'error': 'You can only delete entries within your assigned category'}), 403
+
+        db.session.delete(fmc)
+        db.session.commit()
+        return jsonify({'message': 'FMC entry deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete_fmc: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics', methods=['GET'])
+@login_required
+def get_analytics():
+    try:
+        query = FMCInformation.query
+        query = apply_data_filter(query)
+        entries = query.all()
+
+        pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
+        pipe_entries = pipe_query.all()
+
+        total_entries = len(entries)
+        longhaul_count = sum(1 for e in entries if e.category == 'Longhaul')
+        gpon_fmc_count = sum(1 for e in entries if e.category == 'GPON_FMC')
+        total_cable_used = sum(e.cable_used_meters or 0 for e in entries)
+        total_joints = sum(e.no_of_joints or 0 for e in entries)
+        total_pipe_used = sum(p.pipe_used_meters or 0 for p in pipe_entries)
+
+        cable_type_counts = Counter(e.cable_type for e in entries if e.cable_type)
+        pipe_size_counts = Counter(p.pipe_size_inches for p in pipe_entries if p.pipe_size_inches)
+
+        month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        month_counts = [0] * 12
+        for e in entries:
+            if e.created_at.year == 2025:
+                month_counts[e.created_at.month - 1] += 1
+
+        year_labels = ['2024', '2025']
+        year_counts = [sum(1 for e in entries if e.created_at.year == int(year)) for year in year_labels]
+
+        cable_capacity_data = {}
+        for e in entries:
+            if e.cable_capacity:
+                cable_capacity_data[e.cable_capacity] = cable_capacity_data.get(e.cable_capacity, 0) + (e.cable_used_meters or 0)
+        cable_capacity_labels = list(cable_capacity_data.keys())
+        cable_capacity_counts = list(cable_capacity_data.values())
+
+        cable_types = list(cable_type_counts.keys())
+        cable_type_month_data = {ct: [0] * 12 for ct in cable_types}
+        for e in entries:
+            if e.created_at.year == 2025 and e.cable_type:
+                cable_type_month_data[e.cable_type][e.created_at.month - 1] += 1
+
+        pipe_sizes = [str(size) for size in sorted(set(p.pipe_size_inches for p in pipe_entries if p.pipe_size_inches))]
+        pipe_size_month_data = {str(size): [0] * 12 for size in pipe_sizes}
+        for p in pipe_entries:
+            if p.fmc_info.created_at.year == 2025 and p.pipe_size_inches:
+                pipe_size_month_data[str(p.pipe_size_inches)][p.fmc_info.created_at.month - 1] += 1
+
+        noc_by_category = Counter(e.category for e in entries)
+        noc_category_year_data = {cat: [0] * len(year_labels) for cat in VALID_CATEGORIES}
+        for e in entries:
+            year_idx = year_labels.index(str(e.created_at.year)) if str(e.created_at.year) in year_labels else None
+            if year_idx is not None:
+                noc_category_year_data[e.category][year_idx] += 1
+
+        noc_category_month_data = {cat: [0] * 12 for cat in VALID_CATEGORIES}
+        for e in entries:
+            if e.created_at.year == 2025:
+                noc_category_month_data[e.category][e.created_at.month - 1] += 1
+
+        noc_by_domain = Counter(e.domain for e in entries)
+        domains = sorted(set(d for cat in VALID_DOMAINS.values() for d in cat))
+        noc_domain_year_data = {dom: [0] * len(year_labels) for dom in domains}
+        for e in entries:
+            year_idx = year_labels.index(str(e.created_at.year)) if str(e.created_at.year) in year_labels else None
+            if year_idx is not None:
+                noc_domain_year_data[e.domain][year_idx] += 1
+
+        noc_domain_month_data = {dom: [0] * 12 for dom in domains}
+        for e in entries:
+            if e.created_at.year == 2025:
+                noc_domain_month_data[e.domain][e.created_at.month - 1] += 1
+
+        return jsonify({
+            'total_entries': total_entries,
+            'longhaul_count': longhaul_count,
+            'gpon_fmc_count': gpon_fmc_count,
+            'total_cable_used': total_cable_used,
+            'total_joints': total_joints,
+            'total_pipe_used': total_pipe_used,
+            'cable_type_counts': dict(cable_type_counts),
+            'pipe_size_counts': dict(pipe_size_counts),
+            'month_labels': month_labels,
+            'month_counts': month_counts,
+            'year_labels': year_labels,
+            'year_counts': year_counts,
+            'cable_capacity_labels': cable_capacity_labels,
+            'cable_capacity_counts': cable_capacity_counts,
+            'cable_types': cable_types,
+            'cable_type_month_data': cable_type_month_data,
+            'pipe_sizes': pipe_sizes,
+            'pipe_size_month_data': pipe_size_month_data,
+            'noc_by_category': dict(noc_by_category),
+            'noc_category_year_labels': year_labels,
+            'noc_category_year_cats': VALID_CATEGORIES,
+            'noc_category_year_data': noc_category_year_data,
+            'noc_category_month_cats': VALID_CATEGORIES,
+            'noc_category_month_data': noc_category_month_data,
+            'noc_by_domain': dict(noc_by_domain),
+            'noc_domain_year_labels': year_labels,
+            'noc_domain_year_doms': domains,
+            'noc_domain_year_data': noc_domain_year_data,
+            'noc_domain_month_doms': domains,
+            'noc_domain_month_data': noc_domain_month_data
+        })
+    except Exception as e:
+        logger.error(f"Error in get_analytics: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
