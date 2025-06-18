@@ -18,6 +18,7 @@ from io import BytesIO
 import pytz
 from collections import Counter
 import jwt
+from flask import request
 
 # Load environment variables
 load_dotenv()
