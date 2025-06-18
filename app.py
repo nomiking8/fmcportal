@@ -17,6 +17,7 @@ import pandas as pd
 from io import BytesIO
 import pytz
 from collections import Counter
+import jwt
 
 # Load environment variables
 load_dotenv()
@@ -50,6 +51,31 @@ if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY]):
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# JWT validation function
+def validate_supabase_jwt(token):
+    try:
+        # Decode JWT using Supabase's public key or service key
+        decoded = jwt.decode(
+            token,
+            SUPABASE_KEY,  # Use anon key for public verification
+            algorithms=["HS256"],
+            audience="authenticated"
+        )
+        user_id = decoded.get('sub')
+        email = decoded.get('email')
+        role = decoded.get('role')
+        if not user_id or role != 'authenticated':
+            return None
+        # Verify user exists in users_info
+        user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', user_id).execute()
+        if not user_data.data:
+            return None
+        return user_data.data[0]
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # Valid domains
 VALID_CATEGORIES = ['Longhaul', 'GPON_FMC']
@@ -915,7 +941,7 @@ def delete(id):
     return redirect(url_for('view_fmc'))
 
 @app.route('/api/fmc/<int:id>', methods=['GET'])
-@login_required
+@api_token_required
 def get_fmc_details(id):
     try:
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
@@ -1007,12 +1033,39 @@ def export_fmc():
 
 # ... Existing imports and code ...
 
+# New decorator for API token authentication
+def api_token_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            logger.error(f"Missing or invalid Authorization header: {request.path}")
+            return jsonify({"error": "Unauthorized. Invalid or missing token."}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_data = validate_supabase_jwt(token)
+        if not user_data:
+            logger.error(f"Invalid or expired token for path: {request.path}")
+            return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
+        
+        # Populate session with user data for compatibility with existing routes
+        session['user_id'] = user_data['user_id']
+        session['username'] = user_data['username']
+        session['region'] = user_data['region']
+        session['category'] = user_data['category']
+        session['domain'] = user_data['domain']
+        session['role'] = user_data['role']
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Add before routes
 @app.before_request
 def check_api_auth():
     if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
+        if request.headers.get('Authorization'):
+            return None
         if 'user_id' not in session:
-            logger.error(f"Unauthorized API access: {request.path}, Headers={request.headers}")
+            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_headers(dict(request.headers))}")
             return jsonify({"error": "Unauthorized. Please login."}), 401
         
 # Update login route
@@ -1103,7 +1156,7 @@ def get_fmc_list_redirect():
     return redirect(url_for('get_fmc_list'), code=301)
 
 @app.route('/api/fmc', methods=['GET'])
-@login_required
+@api_token_required
 def get_fmc_list():
     try:
         page = request.args.get('page', 1, type=int)
@@ -1150,7 +1203,7 @@ def get_fmc_list():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fmc', methods=['POST'])
-@login_required
+@api_token_required
 def add_fmc():
     try:
         user_role = session.get('role')
@@ -1252,6 +1305,7 @@ def add_fmc():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fmc/<int:id>', methods=['PUT'])
+@api_token_required
 @master_required
 def update_fmc(id):
     try:
@@ -1347,6 +1401,7 @@ def update_fmc(id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fmc/<int:id>', methods=['DELETE'])
+@api_token_required
 @master_required
 def delete_fmc(id):
     try:
@@ -1367,7 +1422,7 @@ def delete_fmc(id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/analytics', methods=['GET'])
-@login_required
+@api_token_required
 def get_analytics():
     try:
         query = FMCInformation.query
