@@ -1007,7 +1007,100 @@ def export_fmc():
 
 # ... Existing imports and code ...
 
+# Add before routes
+@app.before_request
+def check_api_auth():
+    if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
+        if 'user_id' not in session:
+            logger.error(f"Unauthorized API access: {request.path}, Headers={request.headers}")
+            return jsonify({"error": "Unauthorized. Please login."}), 401
+        
+# Update login route
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    try:
+        data = request.get_json()
+        username = data.get('username', '').lower().strip()
+        password = data.get('password', '').strip()
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
+        if not user_data.data:
+            return jsonify({'error': 'Invalid username'}), 401
+
+        user_id = user_data.data[0]['user_id']
+        region = user_data.data[0]['region']
+        category = user_data.data[0]['category']
+        domain = user_data.data[0]['domain']
+        role = user_data.data[0]['role']
+
+        auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+        if not auth_user.user:
+            return jsonify({'error': 'User not found in authentication system'}), 401
+
+        email = auth_user.user.email
+        email_confirmed = bool(auth_user.user.email_confirmed_at)
+
+        if not email_confirmed:
+            supabase.auth.resend({"type": "signup", "email": email})
+            return jsonify({'error': 'Please verify your email. A new verification email has been sent.'}), 403
+
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if response.user and response.user.id == user_id:
+            session['region'] = region
+            session['username'] = username
+            session['user_id'] = user_id
+            session['category'] = category
+            session['domain'] = domain
+            session['role'] = role
+            resp = make_response(jsonify({
+                'message': 'Login successful',
+                'user': {
+                    'username': username,
+                    'role': role,
+                    'category': category,
+                    'domain': domain
+                }
+            }))
+            resp.set_cookie(
+                'auth_token',
+                response.session.access_token,
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=int(timedelta(hours=24).total_seconds())
+            )
+            return resp, 200
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        logger.error(f"Error in api_login: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Add user_info route
+@app.route('/api/user_info', methods=['GET'])
+def get_user_info():
+    try:
+        username = request.args.get('username', '').lower().strip()
+        if not username:
+            return jsonify({'error': 'Username is required'}), 400
+
+        user_data = supabase_service.table('users_info').select('email').eq('username', username).execute()
+        if not user_data.data:
+            return jsonify({'error': 'Username not found'}), 404
+
+        return jsonify({'email': user_data.data[0]['email']}), 200
+    except Exception as e:
+        logger.error(f"Error in get_user_info: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
 # New API Routes
+@app.route('/api/fmc/', methods=['GET'])
+def get_fmc_list_redirect():
+    return redirect(url_for('get_fmc_list'), code=301)
+
 @app.route('/api/fmc', methods=['GET'])
 @login_required
 def get_fmc_list():
