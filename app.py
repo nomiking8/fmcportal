@@ -56,26 +56,35 @@ supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 # JWT validation function
 def validate_supabase_jwt(token):
     try:
-        # Decode JWT using Supabase's public key or service key
+        # Decode JWT using Supabase's service key
         decoded = jwt.decode(
             token,
-            SUPABASE_KEY,  # Use anon key for public verification
+            SUPABASE_SERVICE_KEY,  # Use service key for verification
             algorithms=["HS256"],
             audience="authenticated"
         )
         user_id = decoded.get('sub')
         email = decoded.get('email')
         role = decoded.get('role')
+        logger.debug(f"Decoded JWT: user_id={user_id}, email={email}, role={role}")
         if not user_id or role != 'authenticated':
+            logger.error(f"Invalid JWT: user_id={user_id}, role={role}")
             return None
         # Verify user exists in users_info
         user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', user_id).execute()
         if not user_data.data:
+            logger.error(f"No user found in users_info for user_id={user_id}")
             return None
+        logger.debug(f"Validated user: {user_data.data[0]}")
         return user_data.data[0]
     except jwt.ExpiredSignatureError:
+        logger.error("JWT expired")
         return None
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"Invalid JWT: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in JWT validation: {str(e)}")
         return None
 
 # Valid domains
