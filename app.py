@@ -7,7 +7,7 @@ import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, csrf_exempt
 from html import escape
 import logging
 import re
@@ -1016,6 +1016,7 @@ def check_api_auth():
             return jsonify({"error": "Unauthorized. Please login."}), 401
         
 # Update login route
+@csrf.exempt
 @app.route('/api/login', methods=['POST'])
 def api_login():
     try:
