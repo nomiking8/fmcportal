@@ -941,6 +941,41 @@ def delete(id):
         flash(f"Error deleting data: {str(e)}", 'error')
     return redirect(url_for('view_fmc'))
 
+# New decorator for API token authentication
+def api_token_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            logger.error(f"Missing or invalid Authorization header: {request.path}")
+            return jsonify({"error": "Unauthorized. Invalid or missing token."}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_data = validate_supabase_jwt(token)
+        if not user_data:
+            logger.error(f"Invalid or expired token for path: {request.path}")
+            return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
+        
+        # Populate session with user data for compatibility with existing routes
+        session['user_id'] = user_data['user_id']
+        session['username'] = user_data['username']
+        session['region'] = user_data['region']
+        session['category'] = user_data['category']
+        session['domain'] = user_data['domain']
+        session['role'] = user_data['role']
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Add before routes
+@app.before_request
+def check_api_auth():
+    if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
+        if request.headers.get('Authorization'):
+            return None
+        if 'user_id' not in session:
+            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_headers(dict(request.headers))}")
+            return jsonify({"error": "Unauthorized. Please login."}), 401
+        
 @app.route('/api/fmc/<int:id>', methods=['GET'])
 @api_token_required
 def get_fmc_details(id):
@@ -1032,43 +1067,7 @@ def export_fmc():
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
 
-# ... Existing imports and code ...
-
-# New decorator for API token authentication
-def api_token_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            logger.error(f"Missing or invalid Authorization header: {request.path}")
-            return jsonify({"error": "Unauthorized. Invalid or missing token."}), 401
-        
-        token = auth_header.split(' ')[1]
-        user_data = validate_supabase_jwt(token)
-        if not user_data:
-            logger.error(f"Invalid or expired token for path: {request.path}")
-            return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
-        
-        # Populate session with user data for compatibility with existing routes
-        session['user_id'] = user_data['user_id']
-        session['username'] = user_data['username']
-        session['region'] = user_data['region']
-        session['category'] = user_data['category']
-        session['domain'] = user_data['domain']
-        session['role'] = user_data['role']
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Add before routes
-@app.before_request
-def check_api_auth():
-    if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
-        if request.headers.get('Authorization'):
-            return None
-        if 'user_id' not in session:
-            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_headers(dict(request.headers))}")
-            return jsonify({"error": "Unauthorized. Please login."}), 401
-        
+# ... Existing imports and code ...    
 # Update login route
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
