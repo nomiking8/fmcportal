@@ -919,20 +919,34 @@ def delete(id):
         flash(f"Error deleting data: {str(e)}", 'error')
     return redirect(url_for('view_fmc'))
 
-def api_token_required(f):
+def api_token_required(allow_session=False):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Check for Authorization header
         auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            logger.error(f"Missing or invalid Authorization header: {request.path}")
-            return jsonify({"error": "Unauthorized. Invalid or missing token."}), 401
-        
-        token = auth_header.split(' ')[1]
-        user_data = validate_supabase_jwt(token)
-        if not user_data:
-            logger.error(f"Invalid or expired token for path: {request.path}")
-            return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
-        
+        user_data = None
+
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            user_data = validate_supabase_jwt(token)
+            if not user_data:
+                logger.error(f"Invalid or expired token for path: {request.path}")
+                return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
+        elif allow_session and 'user_id' in session:
+            # Use session-based authentication
+            user_data = {
+                'user_id': session['user_id'],
+                'username': session['username'],
+                'region': session['region'],
+                'category': session['category'],
+                'domain': session['domain'],
+                'role': session['role']
+            }
+        else:
+            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_text(str(dict(request.headers)))}")
+            return jsonify({"error": "Unauthorized. Please login."}), 401
+
+        # Set session data for the request
         session['user_id'] = user_data['user_id']
         session['username'] = user_data['username']
         session['region'] = user_data['region']
@@ -952,7 +966,7 @@ def check_api_auth():
             return jsonify({"error": "Unauthorized. Please login."}), 401
 
 @app.route('/api/fmc/<int:id>', methods=['GET'])
-@api_token_required
+@api_token_required(allow_session=True)  # Allow session-based auth
 def get_fmc_details(id):
     try:
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
