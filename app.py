@@ -18,7 +18,6 @@ from io import BytesIO
 import pytz
 from collections import Counter
 import jwt
-from flask import request
 
 # Load environment variables
 load_dotenv()
@@ -56,10 +55,9 @@ supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 # JWT validation function
 def validate_supabase_jwt(token):
     try:
-        # Decode JWT using Supabase's service key
         decoded = jwt.decode(
             token,
-            SUPABASE_SERVICE_KEY,  # Use service key for verification
+            SUPABASE_SERVICE_KEY,
             algorithms=["HS256"],
             audience="authenticated"
         )
@@ -70,7 +68,6 @@ def validate_supabase_jwt(token):
         if not user_id or role != 'authenticated':
             logger.error(f"Invalid JWT: user_id={user_id}, role={role}")
             return None
-        # Verify user exists in users_info
         user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', user_id).execute()
         if not user_data.data:
             logger.error(f"No user found in users_info for user_id={user_id}")
@@ -174,6 +171,10 @@ def apply_data_filter(query):
         logger.debug(f"Non-master: Filtering by category={user_category}, domain={user_domain}")
         return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
 
+def get_pkt_time():
+    """Return current time in Pakistan Standard Time (Asia/Karachi)."""
+    return datetime.now(pytz.timezone('Asia/Karachi'))
+
 # Database Models
 class FMCInformation(db.Model):
     __tablename__ = 'fmc_information'
@@ -188,8 +189,8 @@ class FMCInformation(db.Model):
     no_of_joints = db.Column(db.Integer)
     created_by = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_pkt_time)
+    updated_at = db.Column(db.DateTime, default=get_pkt_time, onupdate=get_pkt_time)
     joint_types = db.relationship('JointType', backref='fmc_info', lazy=True, cascade="all, delete-orphan")
     pipe_info = db.relationship('PipeInformation', backref='fmc_info', lazy=True, cascade="all, delete-orphan")
 
@@ -200,8 +201,8 @@ class JointType(db.Model):
     joint_type = db.Column(db.String(100))
     created_by = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_pkt_time)
+    updated_at = db.Column(db.DateTime, default=get_pkt_time, onupdate=get_pkt_time)
 
 class PipeInformation(db.Model):
     __tablename__ = 'pipe_information'
@@ -212,8 +213,8 @@ class PipeInformation(db.Model):
     pipe_type = db.Column(db.String(100))
     created_by = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_pkt_time)
+    updated_at = db.Column(db.DateTime, default=get_pkt_time, onupdate=get_pkt_time)
 
 # Routes
 @app.route('/signup', methods=['GET', 'POST'])
@@ -468,12 +469,10 @@ def index():
 
         logger.debug(f"User: {username}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
 
-        # Base query for FMC entries
         base_query = FMCInformation.query
         filtered_query = apply_data_filter(base_query)
         entries = filtered_query.order_by(FMCInformation.created_at.desc()).limit(5).all()
 
-        # --- NOC ID BY CATEGORY OVERALL ---
         noc_by_category = (
             filtered_query
             .with_entities(FMCInformation.category, db.func.count(FMCInformation.cable_cut_noc_id))
@@ -482,7 +481,6 @@ def index():
         )
         noc_by_category_dict = {cat: count for cat, count in noc_by_category}
 
-        # --- NOC ID BY CATEGORY YEAR WISE ---
         noc_by_category_year = (
             filtered_query
             .with_entities(
@@ -494,7 +492,6 @@ def index():
             .order_by('year')
             .all()
         )
-        # Example: {(2024, 'Longhaul'): count, ...}
         noc_category_year_labels = sorted(set(str(int(x[0])) for x in noc_by_category_year))
         noc_category_year_cats = sorted(set(x[1] for x in noc_by_category_year))
         noc_category_year_data = {
@@ -504,7 +501,6 @@ def index():
             idx = noc_category_year_labels.index(str(int(year)))
             noc_category_year_data[cat][idx] = count
 
-        # --- NOC ID BY CATEGORY MONTH WISE (2025 only) ---
         noc_by_category_month = (
             filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
             .with_entities(
@@ -522,7 +518,6 @@ def index():
         for month, cat, count in noc_by_category_month:
             noc_category_month_data[cat][int(month)-1] = count
 
-        # --- NOC BY DOMAIN OVERALL ---
         noc_by_domain = (
             filtered_query
             .with_entities(FMCInformation.domain, db.func.count(FMCInformation.cable_cut_noc_id))
@@ -531,7 +526,6 @@ def index():
         )
         noc_by_domain_dict = {dom: count for dom, count in noc_by_domain}
 
-        # --- NOC BY DOMAIN YEAR WISE ---
         noc_by_domain_year = (
             filtered_query
             .with_entities(
@@ -552,7 +546,6 @@ def index():
             idx = noc_domain_year_labels.index(str(int(year)))
             noc_domain_year_data[dom][idx] = count
 
-        # --- NOC BY DOMAIN MONTH WISE (2025 only) ---
         noc_by_domain_month = (
             filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
             .with_entities(
@@ -569,7 +562,6 @@ def index():
         for month, dom, count in noc_by_domain_month:
             noc_domain_month_data[dom][int(month)-1] = count
 
-        # --- Existing stats for summary, cable, joints, pipe, etc ---
         total_entries = filtered_query.count()
         longhaul_count = filtered_query.filter(FMCInformation.category == 'Longhaul').count()
         gpon_fmc_count = filtered_query.filter(FMCInformation.category == 'GPON_FMC').count()
@@ -578,14 +570,12 @@ def index():
         pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
         total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
-        # Cable type counts
         cable_type_counts = dict(
             filtered_query.filter(FMCInformation.cable_type.isnot(None))
             .with_entities(FMCInformation.cable_type, db.func.count(FMCInformation.cable_cut_noc_id))
             .group_by(FMCInformation.cable_type)
             .all()
         )
-        # Pipe size counts
         pipe_size_counts = dict(
             pipe_query.filter(PipeInformation.pipe_size_inches.isnot(None))
             .with_entities(PipeInformation.pipe_size_inches, db.func.count(PipeInformation.id))
@@ -593,7 +583,6 @@ def index():
             .all()
         )
 
-        # Month-wise NOC ID counts for 2025
         month_counts = (
             filtered_query.filter(db.extract('year', FMCInformation.created_at) == 2025)
             .with_entities(
@@ -608,7 +597,6 @@ def index():
         for month, count in month_counts:
             month_data[int(month) - 1] = count
 
-        # Yearly NOC ID totals
         year_counts = (
             filtered_query
             .with_entities(
@@ -624,7 +612,6 @@ def index():
             if str(int(year)) in year_labels:
                 year_data[year_labels.index(str(int(year)))] = count
 
-        # Cable capacity distribution
         cable_capacity_rows = (
             filtered_query.filter(FMCInformation.cable_capacity.isnot(None))
             .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))
@@ -634,7 +621,6 @@ def index():
         cable_capacity_labels = [row[0] for row in cable_capacity_rows]
         cable_capacity_data = [float(row[1]) for row in cable_capacity_rows]
 
-        # Month-wise Cable Type counts for 2025
         cable_type_month_counts = (
             filtered_query.filter(
                 db.extract('year', FMCInformation.created_at) == 2025,
@@ -654,7 +640,6 @@ def index():
         for month, c_type, count in cable_type_month_counts:
             cable_type_month_data[c_type][int(month) - 1] = count
 
-        # Month-wise Pipe Size counts for 2025
         pipe_size_month_counts = (
             pipe_query.filter(
                 db.extract('year', FMCInformation.created_at) == 2025,
@@ -697,22 +682,18 @@ def index():
             cable_type_month_data=cable_type_month_data,
             pipe_sizes=[str(size) for size in pipe_sizes],
             pipe_size_month_data=pipe_size_month_data,
-
-            # New for NOC by cat/domain
             noc_by_category=noc_by_category_dict,
             noc_category_year_labels=noc_category_year_labels,
             noc_category_year_cats=noc_category_year_cats,
             noc_category_year_data=noc_category_year_data,
             noc_category_month_cats=noc_category_month_cats,
             noc_category_month_data=noc_category_month_data,
-
             noc_by_domain=noc_by_domain_dict,
             noc_domain_year_labels=noc_domain_year_labels,
             noc_domain_year_doms=noc_domain_year_doms,
             noc_domain_year_data=noc_domain_year_data,
             noc_domain_month_doms=noc_domain_month_doms,
             noc_domain_month_data=noc_domain_month_data,
-
             user_role=user_role,
             user_category=user_category,
             user_domain=user_domain
@@ -721,7 +702,7 @@ def index():
         logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
         return redirect(url_for('index'))
-    
+
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
@@ -754,7 +735,6 @@ def add():
                     logger.error(f"Invalid domain selected by master user: category={category}, domain={domain}")
                     raise ValueError("Please select a specific domain for the chosen category")
 
-            # Validate joint types
             joint_types = request.form.getlist('joint_type[]')
             joint_types = [jt.strip() for jt in joint_types if jt.strip()]
             if no_of_joints is not None and len(joint_types) != no_of_joints:
@@ -770,24 +750,20 @@ def add():
                 cable_capacity=cable_capacity,
                 no_of_joints=no_of_joints,
                 created_by=username,
-                updated_by=username,
-                updated_at=datetime.utcnow()
+                updated_by=username
             )
             db.session.add(fmc)
             db.session.flush()
 
-            # Joint Types
             for jt in joint_types:
                 joint = JointType(
                     fmc_id=fmc.id,
                     joint_type=jt,
                     created_by=username,
-                    updated_by=username,
-                    updated_at=datetime.utcnow()
+                    updated_by=username
                 )
                 db.session.add(joint)
 
-            # Pipe Information
             pipe_used_meters = safe_float(request.form.get('pipe_used_meters'), 'pipe_used_meters') if request.form.get('pipe_used_meters') else None
             pipe_size_inches = safe_float(request.form.get('pipe_size_inches'), 'pipe_size_inches') if request.form.get('pipe_size_inches') else None
             pipe_type = request.form.get('pipe_type') or None
@@ -798,8 +774,7 @@ def add():
                     pipe_size_inches=pipe_size_inches,
                     pipe_type=pipe_type,
                     created_by=username,
-                    updated_by=username,
-                    updated_at=datetime.utcnow()
+                    updated_by=username
                 )
                 db.session.add(pipe)
 
@@ -828,7 +803,7 @@ def view_fmc():
         if search:
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
-        per_page = 10
+        per_page = 30
         pagination = query.order_by(FMCInformation.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
         return render_template(
@@ -876,27 +851,22 @@ def edit(id):
             fmc.cable_capacity = request.form.get('cable_capacity') or None
             fmc.no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
             fmc.updated_by = username
-            fmc.updated_at = datetime.utcnow()
 
-            # Validate joint types
             joint_types = request.form.getlist('joint_type[]')
             joint_types = [jt.strip() for jt in joint_types if jt.strip()]
             if fmc.no_of_joints is not None and len(joint_types) != fmc.no_of_joints:
                 raise ValueError(f"Number of joint types ({len(joint_types)}) does not match number of joints ({fmc.no_of_joints})")
 
-            # Update Joint Types
             db.session.query(JointType).filter_by(fmc_id=fmc.id).delete()
             for jt in joint_types:
                 joint = JointType(
                     fmc_id=fmc.id,
                     joint_type=jt,
                     created_by=fmc.updated_by,
-                    updated_by=fmc.updated_by,
-                    updated_at=datetime.utcnow()
+                    updated_by=fmc.updated_by
                 )
                 db.session.add(joint)
 
-            # Update Pipe Information
             db.session.query(PipeInformation).filter_by(fmc_id=fmc.id).delete()
             pipe_used_meters = safe_float(request.form.get('pipe_used_meters'), 'pipe_used_meters') if request.form.get('pipe_used_meters') else None
             pipe_size_inches = safe_float(request.form.get('pipe_size_inches'), 'pipe_size_inches') if request.form.get('pipe_size_inches') else None
@@ -908,8 +878,7 @@ def edit(id):
                     pipe_size_inches=pipe_size_inches,
                     pipe_type=pipe_type,
                     created_by=fmc.updated_by,
-                    updated_by=fmc.updated_by,
-                    updated_at=datetime.utcnow()
+                    updated_by=fmc.updated_by
                 )
                 db.session.add(pipe)
 
@@ -950,7 +919,6 @@ def delete(id):
         flash(f"Error deleting data: {str(e)}", 'error')
     return redirect(url_for('view_fmc'))
 
-# New decorator for API token authentication
 def api_token_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -965,7 +933,6 @@ def api_token_required(f):
             logger.error(f"Invalid or expired token for path: {request.path}")
             return jsonify({"error": "Unauthorized. Invalid or expired token."}), 401
         
-        # Populate session with user data for compatibility with existing routes
         session['user_id'] = user_data['user_id']
         session['username'] = user_data['username']
         session['region'] = user_data['region']
@@ -975,16 +942,15 @@ def api_token_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Add before routes
 @app.before_request
 def check_api_auth():
     if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
         if request.headers.get('Authorization'):
             return None
         if 'user_id' not in session:
-            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_headers(dict(request.headers))}")
+            logger.error(f"Unauthorized API access: {request.path}, Headers={sanitize_text(str(dict(request.headers)))}")
             return jsonify({"error": "Unauthorized. Please login."}), 401
-        
+
 @app.route('/api/fmc/<int:id>', methods=['GET'])
 @api_token_required
 def get_fmc_details(id):
@@ -1030,8 +996,8 @@ def export_fmc():
         pkt_tz = pytz.timezone('Asia/Karachi')
         records = []
         for fmc in data:
-            created_at_pkt = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
-            updated_at_pkt = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
+            created_at_pkt = fmc.created_at.replace(tzinfo=pkt_tz)
+            updated_at_pkt = fmc.updated_at.replace(tzinfo=pkt_tz)
             
             joint_types_str = ', '.join(jt.joint_type for jt in fmc.joint_types) if fmc.joint_types else '-'
             
@@ -1076,8 +1042,6 @@ def export_fmc():
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
 
-# ... Existing imports and code ...    
-# Update login route
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
 def api_login():
@@ -1142,7 +1106,6 @@ def api_login():
         logger.error(f"Error in api_login: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# Add user_info route
 @app.route('/api/user_info', methods=['GET'])
 def get_user_info():
     try:
@@ -1158,8 +1121,7 @@ def get_user_info():
     except Exception as e:
         logger.error(f"Error in get_user_info: {str(e)}")
         return jsonify({'error': str(e)}), 500
-        
-# New API Routes
+
 @app.route('/api/fmc/', methods=['GET'])
 def get_fmc_list_redirect():
     return redirect(url_for('get_fmc_list'), code=301)
@@ -1270,9 +1232,7 @@ def add_fmc():
             cable_capacity=cable_capacity,
             no_of_joints=no_of_joints,
             created_by=username,
-            updated_by=username,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_by=username
         )
         db.session.add(fmc)
         db.session.flush()
@@ -1282,9 +1242,7 @@ def add_fmc():
                 fmc_id=fmc.id,
                 joint_type=jt,
                 created_by=username,
-                updated_by=username,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_by=username
             )
             db.session.add(joint)
 
@@ -1300,9 +1258,7 @@ def add_fmc():
                 pipe_size_inches=pipe_size_inches,
                 pipe_type=pipe_info.get('pipe_type'),
                 created_by=username,
-                updated_by=username,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_by=username
             )
             db.session.add(pipe)
 
@@ -1369,7 +1325,6 @@ def update_fmc(id):
         fmc.cable_capacity = cable_capacity
         fmc.no_of_joints = no_of_joints
         fmc.updated_by = username
-        fmc.updated_at = datetime.utcnow()
 
         db.session.query(JointType).filter_by(fmc_id=fmc.id).delete()
         for jt in joint_types:
@@ -1377,9 +1332,7 @@ def update_fmc(id):
                 fmc_id=fmc.id,
                 joint_type=jt,
                 created_by=username,
-                updated_by=username,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_by=username
             )
             db.session.add(joint)
 
@@ -1396,9 +1349,7 @@ def update_fmc(id):
                 pipe_size_inches=pipe_size_inches,
                 pipe_type=pipe_info.get('pipe_type'),
                 created_by=username,
-                updated_by=username,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_by=username
             )
             db.session.add(pipe)
 
