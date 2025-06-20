@@ -1031,17 +1031,6 @@ def export_fmc():
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
-    
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    handlers=[
-        logging.StreamHandler()  # Log to stdout
-    ]
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 # Add before_request hook
 @app.before_request
@@ -1051,46 +1040,19 @@ def check_api_auth():
             logger.error(f"Unauthorized API access: {request.path}, Headers={request.headers}")
             return jsonify({"error": "Unauthorized. Please login."}), 401
 
-# Replace /api/login
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
 def api_login():
-    # Cache raw body
-    raw_body = request.get_data(as_text=True)
-    logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Body={raw_body}")
-    logger.debug(f"Content-Type: {request.headers.get('Content-Type')}, Content-Length: {request.headers.get('Content-Length')}")
-    logger.debug(f"request.is_json: {request.is_json}, Request Environ: {request.environ}")
+    logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Form={request.form}, Data={request.get_data(as_text=True)}")
 
-    # Check Content-Type
     content_type = request.headers.get('Content-Type', '').lower()
-    if not content_type.startswith('application/json'):
+    if not content_type.startswith('application/x-www-form-urlencoded'):
         logger.error(f"Invalid Content-Type: {content_type or 'missing'}")
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-
-    # Try parsing JSON
-    try:
-        data = request.get_json(force=True)
-        if not data:
-            logger.error("Empty JSON object received")
-            return jsonify({"error": "No JSON data provided"}), 400
-    except Exception as e:
-        logger.error(f"Flask JSON parsing failed: {str(e)}, Raw body={raw_body}")
-        try:
-            if raw_body:
-                data = json.loads(raw_body)
-                if not data:
-                    logger.error("Manual parsing yielded empty object")
-                    return jsonify({"error": "No JSON data provided"}), 400
-            else:
-                logger.error("Raw body is empty")
-                return jsonify({"error": "No JSON data provided"}), 400
-        except json.JSONDecodeError as je:
-            logger.error(f"Manual JSON parsing failed: {str(je)}, Raw body={raw_body}")
-            return jsonify({"error": f"Invalid JSON format: {str(je)}"}), 400
+        return jsonify({"error": "Content-Type must be application/x-www-form-urlencoded"}), 415
 
     try:
-        username = data.get('username', '').lower().strip()
-        password = data.get('password', '').strip()
+        username = request.form.get('username', '').lower().strip()
+        password = request.form.get('password', '').strip()
 
         if not username or not password:
             logger.error("Missing username or password")
