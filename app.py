@@ -68,7 +68,32 @@ VALID_DOMAINS = {
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
+        auth_token = request.cookies.get('auth_token')
+        if auth_token:
+            try:
+                # Verify the token with Supabase
+                response = supabase.auth.get_user(auth_token)
+                if response.user:
+                    # Fetch user info from users_info table
+                    user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', response.user.id).execute()
+                    if user_data.data:
+                        # Set session data
+                        session['user_id'] = user_data.data[0]['user_id']
+                        session['username'] = user_data.data[0]['username']
+                        session['region'] = user_data.data[0]['region']
+                        session['category'] = user_data.data[0]['category']
+                        session['domain'] = user_data.data[0]['domain']
+                        session['role'] = user_data.data[0]['role']
+                        return f(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Token validation failed: {str(e)}")
+                # Clear invalid token
+                resp = make_response(redirect(url_for('login')))
+                resp.set_cookie('auth_token', '', expires=0)
+                session.clear()
+                flash('Invalid or expired session. Please log in again.')
+                return resp
+        else:
             flash('Please log in to access this page')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -265,6 +290,82 @@ def signup():
 
     return render_template('signup.html')
 
+@app.route('/api/login', methods=['POST'])
+@csrf.exempt
+def api_login():
+    try:
+        data = request.get_json()
+        if not data:
+            logger.error("No JSON data provided in /api/login")
+            return jsonify({'error': 'No JSON data provided'}), 400
+
+        username = data.get('username', '').lower().strip()
+        password = data.get('password', '').strip()
+
+        if not username or not password:
+            logger.error("Missing username or password in /api/login")
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
+        if not user_data.data:
+            logger.error(f"Invalid username in /api/login: {username}")
+            return jsonify({'error': 'Invalid username'}), 401
+
+        user_id = user_data.data[0]['user_id']
+        region = user_data.data[0]['region']
+        category = user_data.data[0]['category']
+        domain = user_data.data[0]['domain']
+        role = user_data.data[0]['role']
+
+        auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+        if not auth_user.user:
+            logger.error(f"User not found in authentication system: {username}")
+            return jsonify({'error': 'User not found in authentication system'}), 401
+
+        email = auth_user.user.email
+        email_confirmed = bool(auth_user.user.email_confirmed_at)
+
+        if not email_confirmed:
+            supabase.auth.resend({"type": "signup", "email": email})
+            logger.info(f"Email not verified for {username}, resending verification email")
+            return jsonify({'error': 'Please verify your email. A new verification email has been sent.'}), 403
+
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if response.user and response.user.id == user_id:
+            session['region'] = region
+            session['username'] = username
+            session['user_id'] = user_id
+            session['category'] = category
+            session['domain'] = domain
+            session['role'] = role
+            resp = make_response(jsonify({
+                'message': 'Login successful',
+                'auth_token': response.session.access_token,
+                'user': {
+                    'username': username,
+                    'region': region,
+                    'category': category,
+                    'domain': domain,
+                    'role': role
+                }
+            }))
+            resp.set_cookie(
+                'auth_token',
+                response.session.access_token,
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=int(timedelta(hours=24).total_seconds())
+            )
+            logger.info(f"API login successful for {username}")
+            return resp
+        else:
+            logger.error(f"Invalid credentials for {username}")
+            return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        logger.error(f"Error in api_login: {str(e)}")
+        return jsonify({'error': f'Login failed: {str(e)}'}), 500
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -458,7 +559,6 @@ def index():
             .order_by('year')
             .all()
         )
-        # Example: {(2024, 'Longhaul'): count, ...}
         noc_category_year_labels = sorted(set(str(int(x[0])) for x in noc_by_category_year))
         noc_category_year_cats = sorted(set(x[1] for x in noc_by_category_year))
         noc_category_year_data = {
@@ -685,7 +785,7 @@ def index():
         logger.error(f"Error in index route: {str(e)}")
         flash(f"Error: {str(e)}")
         return redirect(url_for('index'))
-    
+
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
