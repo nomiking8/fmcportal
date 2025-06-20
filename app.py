@@ -35,6 +35,8 @@ migrate = Migrate(app, db)
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
+csrf.exempt("api_login")
+csrf.exempt("get_user_info")
 
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
