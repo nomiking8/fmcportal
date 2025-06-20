@@ -291,111 +291,6 @@ def signup():
 
     return render_template('signup.html')
 
-@app.route('/api/login', methods=['POST'])
-@csrf.exempt
-def api_login():
-    # Cache raw body to avoid stream exhaustion
-    raw_body = request.get_data(as_text=True)
-    logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Body={raw_body}")
-    logger.debug(f"Content-Type: {request.headers.get('Content-Type')}, Content-Length: {request.headers.get('Content-Length')}")
-    logger.debug(f"request.is_json: {request.is_json}, Request Environ: {request.environ}")
-
-    # Check Content-Type
-    content_type = request.headers.get('Content-Type', '').lower()
-    if not content_type.startswith('application/json'):
-        logger.error(f"Invalid Content-Type: {content_type or 'missing'}")
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-
-    # Try Flask's JSON parsing
-    try:
-        data = request.get_json(force=True)
-        if not data:
-            logger.error("Empty JSON object received")
-            return jsonify({"error": "No JSON data provided"}), 400
-    except Exception as e:
-        logger.error(f"Flask JSON parsing failed: {str(e)}, Raw body={raw_body}")
-        # Fallback to manual JSON parsing
-        try:
-            if raw_body:
-                data = json.loads(raw_body)
-                if not data:
-                    logger.error("Manual parsing yielded empty object")
-                    return jsonify({"error": "No JSON data provided"}), 400
-            else:
-                logger.error("Raw body is empty")
-                return jsonify({"error": "No JSON data provided"}), 400
-        except json.JSONDecodeError as je:
-            logger.error(f"Manual JSON parsing failed: {str(je)}, Raw body={raw_body}")
-            return jsonify({"error": f"Invalid JSON format: {str(je)}"}), 400
-
-    try:
-        username = data.get('username', '').lower().strip()
-        password = data.get('password', '').strip()
-
-        if not username or not password:
-            logger.error("Missing username or password")
-            return jsonify({"error": "Username and password are required"}), 400
-
-        user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
-        if not user_data.data:
-            logger.error(f"Invalid username: {username}")
-            return jsonify({"error": "Invalid username"}), 401
-
-        user_id = user_data.data[0]['user_id']
-        region = user_data.data[0]['region']
-        category = user_data.data[0]['category']
-        domain = user_data.data[0]['domain']
-        role = user_data.data[0]['role']
-
-        auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
-        if not auth_user.user:
-            logger.error(f"User not found in authentication system: {username}")
-            return jsonify({"error": "User not found in authentication system"}), 401
-
-        email = auth_user.user.email
-        email_confirmed = bool(auth_user.user.email_confirmed_at)
-
-        if not email_confirmed:
-            supabase.auth.resend({"type": "signup", "email": email})
-            logger.info(f"Email not verified for {username}, resending verification email")
-            return jsonify({"error": "Please verify your email. A new verification email has been sent."}), 403
-
-        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
-        if response.user and response.user.id == user_id:
-            session['region'] = region
-            session['username'] = username
-            session['user_id'] = user_id
-            session['category'] = category
-            session['domain'] = domain
-            session['role'] = role
-            resp = make_response(jsonify({
-                "message": "Login successful",
-                "auth_token": response.session.access_token,
-                "user": {
-                    "username": username,
-                    "region": region,
-                    "category": category,
-                    "domain": domain,
-                    "role": role
-                }
-            }))
-            resp.set_cookie(
-                "auth_token",
-                response.session.access_token,
-                httponly=True,
-                secure=True,
-                samesite="Lax",
-                max_age=int(timedelta(hours=24).total_seconds())
-            )
-            logger.info(f"API login successful for {username}")
-            return resp
-        else:
-            logger.error(f"Invalid credentials for {username}")
-            return jsonify({"error": "Invalid credentials"}), 401
-    except Exception as e:
-        logger.error(f"Error in api_login: {str(e)}")
-        return jsonify({"error": f"Login failed: {str(e)}"}), 500
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -1134,6 +1029,150 @@ def export_fmc():
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
+    
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s: %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Log to stdout
+    ]
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Add before_request hook
+@app.before_request
+def check_api_auth():
+    if request.path.startswith('/api') and request.path not in ['/api/user_info', '/api/login']:
+        if 'user_id' not in session:
+            logger.error(f"Unauthorized API access: {request.path}, Headers={request.headers}")
+            return jsonify({"error": "Unauthorized. Please login."}), 401
+
+# Replace /api/login
+@app.route('/api/login', methods=['POST'])
+@csrf.exempt
+def api_login():
+    # Cache raw body
+    raw_body = request.get_data(as_text=True)
+    logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Body={raw_body}")
+    logger.debug(f"Content-Type: {request.headers.get('Content-Type')}, Content-Length: {request.headers.get('Content-Length')}")
+    logger.debug(f"request.is_json: {request.is_json}, Request Environ: {request.environ}")
+
+    # Check Content-Type
+    content_type = request.headers.get('Content-Type', '').lower()
+    if not content_type.startswith('application/json'):
+        logger.error(f"Invalid Content-Type: {content_type or 'missing'}")
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
+    # Try parsing JSON
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            logger.error("Empty JSON object received")
+            return jsonify({"error": "No JSON data provided"}), 400
+    except Exception as e:
+        logger.error(f"Flask JSON parsing failed: {str(e)}, Raw body={raw_body}")
+        try:
+            if raw_body:
+                data = json.loads(raw_body)
+                if not data:
+                    logger.error("Manual parsing yielded empty object")
+                    return jsonify({"error": "No JSON data provided"}), 400
+            else:
+                logger.error("Raw body is empty")
+                return jsonify({"error": "No JSON data provided"}), 400
+        except json.JSONDecodeError as je:
+            logger.error(f"Manual JSON parsing failed: {str(je)}, Raw body={raw_body}")
+            return jsonify({"error": f"Invalid JSON format: {str(je)}"}), 400
+
+    try:
+        username = data.get('username', '').lower().strip()
+        password = data.get('password', '').strip()
+
+        if not username or not password:
+            logger.error("Missing username or password")
+            return jsonify({"error": "Username and password are required"}), 400
+
+        user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
+        if not user_data.data:
+            logger.error(f"Invalid username: {username}")
+            return jsonify({"error": "Invalid username"}), 401
+
+        user_id = user_data.data[0]['user_id']
+        region = user_data.data[0]['region']
+        category = user_data.data[0]['category']
+        domain = user_data.data[0]['domain']
+        role = user_data.data[0]['role']
+
+        auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+        if not auth_user.user:
+            logger.error(f"User not found in authentication system: {username}")
+            return jsonify({"error": "User not found in authentication system"}), 401
+
+        email = auth_user.user.email
+        email_confirmed = bool(auth_user.user.email_confirmed_at)
+
+        if not email_confirmed:
+            supabase.auth.resend({"type": "signup", "email": email})
+            logger.info(f"Email not verified for {username}, resending verification email")
+            return jsonify({"error": "Please verify your email. A new verification email has been sent."}), 403
+
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if response.user and response.user.id == user_id:
+            session['region'] = region
+            session['username'] = username
+            session['user_id'] = user_id
+            session['category'] = category
+            session['domain'] = domain
+            session['role'] = role
+            resp = make_response(jsonify({
+                "message": "Login successful",
+                "auth_token": response.session.access_token,
+                "user": {
+                    "username": username,
+                    "region": region,
+                    "category": category,
+                    "domain": domain,
+                    "role": role
+                }
+            }))
+            resp.set_cookie(
+                "auth_token",
+                response.session.access_token,
+                httponly=True,
+                secure=True,
+                samesite="Lax",
+                max_age=int(timedelta(hours=24).total_seconds())
+            )
+            logger.info(f"API login successful for {username}")
+            return resp
+        else:
+            logger.error(f"Invalid credentials for {username}")
+            return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        logger.error(f"Error in api_login: {str(e)}")
+        return jsonify({"error": f"Login failed: {str(e)}"}), 500
+
+# Add /api/user_info
+@app.route('/api/user_info', methods=['GET'])
+@csrf.exempt
+def get_user_info():
+    try:
+        username = request.args.get('username', '').lower().strip()
+        if not username:
+            logger.error("Username is required")
+            return jsonify({'error': 'Username is required'}), 400
+
+        user_data = supabase_service.table('users_info').select('email').eq('username', username).execute()
+        if not user_data.data:
+            logger.error(f"Username not found: {username}")
+            return jsonify({'error': 'Username not found'}), 404
+
+        return jsonify({'email': user_data.data[0]['email']}), 200
+    except Exception as e:
+        logger.error(f"Error in get_user_info: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
