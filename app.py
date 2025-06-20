@@ -293,6 +293,12 @@ def signup():
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
 def api_login():
+    logger.debug(f"Received /api/login request: Headers={request.headers}, Body={request.get_data(as_text=True)}")
+    
+    if not request.is_json:
+        logger.error("Request Content-Type is not application/json")
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
     try:
         data = request.get_json()
         if not data:
