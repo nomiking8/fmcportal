@@ -17,6 +17,7 @@ import pandas as pd
 from io import BytesIO
 import pytz
 from collections import Counter
+import json
 
 # Load environment variables
 load_dotenv()
@@ -293,26 +294,39 @@ def signup():
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
 def api_login():
-    # Log raw request details
+    # Cache raw body to avoid stream exhaustion
     raw_body = request.get_data(as_text=True)
     logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Body={raw_body}")
     logger.debug(f"Content-Type: {request.headers.get('Content-Type')}, Content-Length: {request.headers.get('Content-Length')}")
-    logger.debug(f"request.is_json: {request.is_json}")
+    logger.debug(f"request.is_json: {request.is_json}, Request Environ: {request.environ}")
 
     # Check Content-Type
-    if not request.headers.get('Content-Type', '').startswith('application/json'):
-        logger.error(f"Invalid Content-Type: {request.headers.get('Content-Type', 'missing')}")
+    content_type = request.headers.get('Content-Type', '').lower()
+    if not content_type.startswith('application/json'):
+        logger.error(f"Invalid Content-Type: {content_type or 'missing'}")
         return jsonify({"error": "Content-Type must be application/json"}), 415
 
-    # Try parsing JSON
+    # Try Flask's JSON parsing
     try:
-        data = request.get_json(force=True)  # Force parsing to catch errors
+        data = request.get_json(force=True)
         if not data:
-            logger.error("No JSON data provided or empty JSON object")
+            logger.error("Empty JSON object received")
             return jsonify({"error": "No JSON data provided"}), 400
     except Exception as e:
-        logger.error(f"JSON parsing failed: {str(e)}, Raw body={raw_body}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+        logger.error(f"Flask JSON parsing failed: {str(e)}, Raw body={raw_body}")
+        # Fallback to manual JSON parsing
+        try:
+            if raw_body:
+                data = json.loads(raw_body)
+                if not data:
+                    logger.error("Manual parsing yielded empty object")
+                    return jsonify({"error": "No JSON data provided"}), 400
+            else:
+                logger.error("Raw body is empty")
+                return jsonify({"error": "No JSON data provided"}), 400
+        except json.JSONDecodeError as je:
+            logger.error(f"Manual JSON parsing failed: {str(je)}, Raw body={raw_body}")
+            return jsonify({"error": f"Invalid JSON format: {str(je)}"}), 400
 
     try:
         username = data.get('username', '').lower().strip()
