@@ -256,13 +256,15 @@
             </svg>
         </button>
         <div class="desktop-header-center hidden lg:flex">
-            <a href="{{ url_for('index') }}" class="fmcp-link flex items-center gap-2">
-                <img src="/static/logo.png" alt="FMC Store Record Logo" class="h-12 w-auto">
+            <a href="{{ url_for('index') }}" class="fmcp-link flex items-center gap-2 text-2xl font-extrabold tracking-wide">
+                <img src="/static/images/logo.png" alt="FMC Store Record" class="h-12 w-auto" onerror="this.style.display='none'">
+                <span>FMC Store Record</span>
             </a>
         </div>
-        <div class="mobile-header-title lg:hidden">
-            <a href="{{ url_for('index') }}" class="fmcp-link flex items-center gap-2">
-                <img src="/static/logo.png" alt="FMC Store Record Logo" class="h-10 w-auto">
+        <div class="mobile-header-title lg:hidden font-extrabold">
+            <a href="{{ url_for('index') }}" class="fmcp-link flex items-center gap-2 text-xl font-extrabold tracking-wide">
+                <img src="/static/images/logo.png" alt="FMC Store Record" class="h-10 w-auto" onerror="this.style.display='none'">
+                <span>FMC Store Record</span>
             </a>
         </div>
         <div class="relative flex items-center ml-auto">
