@@ -1021,12 +1021,28 @@ def export_fmc():
             df.to_excel(writer, index=False, sheet_name='FMC Data')
         output.seek(0)
 
-        return send_file(
+        # Create response with file
+        response = make_response(send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name='fmc_data.xlsx'
-        )
+        ))
+        
+        # Ensure auth_token is preserved in the response
+        auth_token = request.cookies.get('auth_token')
+        if auth_token:
+            response.set_cookie(
+                'auth_token',
+                auth_token,
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=int(timedelta(hours=24).total_seconds())
+            )
+        
+        logger.info(f"Export successful for user {session.get('username')}")
+        return response
     except Exception as e:
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
