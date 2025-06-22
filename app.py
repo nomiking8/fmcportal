@@ -360,6 +360,7 @@ def api_signup():
         logger.error(f"Error in api_signup: {str(e)}")
         return jsonify({"error": f"Signup failed: {str(e)}"}), 500
 
+@csrf.exempt
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
