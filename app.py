@@ -82,8 +82,13 @@ def login_required(f):
             return resp
 
         try:
+            # Log token for debugging
+            logger.debug(f"Validating token: {auth_token[:10]}... (truncated)")
+
             # Use supabase_service to validate the token
             response = supabase_service.auth.get_user(auth_token)
+            logger.debug(f"Supabase response: {response}")
+
             if response.user:
                 # Fetch user metadata from users_info table
                 user_data = supabase_service.table('users_info').select(
@@ -104,6 +109,7 @@ def login_required(f):
                 session['category'] = user_data.data[0]['category']
                 session['domain'] = user_data.data[0]['domain']
                 session['role'] = user_data.data[0]['role']
+                logger.info(f"Token validated successfully for user: {session['username']}")
                 return f(*args, **kwargs)
             else:
                 logger.error("Invalid user response from Supabase")
