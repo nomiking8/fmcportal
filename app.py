@@ -74,26 +74,49 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.cookies.get('auth_token')
-        if auth_token:
-            try:
-                response = supabase.auth.get_user(auth_token)
-                if response.user:
-                    user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', response.user.id).execute()
-                    if user_data.data:
-                        session['user_id'] = user_data.data[0]['user_id']
-                        session['username'] = user_data.data[0]['username']
-                        session['region'] = user_data.data[0]['region']
-                        session['category'] = user_data.data[0]['category']
-                        session['domain'] = user_data.data[0]['domain']
-                        session['role'] = user_data.data[0]['role']
-                        return f(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Token validation failed: {str(e)}")
-                resp = make_response(jsonify({"error": "Invalid or expired session. Please log in again."}), 401)
+        if not auth_token:
+            logger.error("No authorization token provided")
+            resp = make_response(jsonify({"error": "No authorization token provided. Please log in."}), 401)
+            resp.set_cookie('auth_token', '', expires=0)
+            session.clear()
+            return resp
+
+        try:
+            # Use supabase_service to validate the token
+            response = supabase_service.auth.get_user(auth_token)
+            if response.user:
+                # Fetch user metadata from users_info table
+                user_data = supabase_service.table('users_info').select(
+                    'user_id', 'username', 'region', 'category', 'domain', 'role'
+                ).eq('user_id', response.user.id).execute()
+                
+                if not user_data.data:
+                    logger.error(f"No user data found for user_id: {response.user.id}")
+                    resp = make_response(jsonify({"error": "User not found in database. Please log in again."}), 401)
+                    resp.set_cookie('auth_token', '', expires=0)
+                    session.clear()
+                    return resp
+
+                # Set session data
+                session['user_id'] = user_data.data[0]['user_id']
+                session['username'] = user_data.data[0]['username']
+                session['region'] = user_data.data[0]['region']
+                session['category'] = user_data.data[0]['category']
+                session['domain'] = user_data.data[0]['domain']
+                session['role'] = user_data.data[0]['role']
+                return f(*args, **kwargs)
+            else:
+                logger.error("Invalid user response from Supabase")
+                resp = make_response(jsonify({"error": "Invalid or expired token. Please log in again."}), 401)
                 resp.set_cookie('auth_token', '', expires=0)
                 session.clear()
                 return resp
-        return jsonify({"error": "Please log in to access this resource"}), 401
+        except Exception as e:
+            logger.error(f"Token validation failed: {str(e)}")
+            resp = make_response(jsonify({"error": f"Invalid or expired token: {str(e)}. Please log in again."}), 401)
+            resp.set_cookie('auth_token', '', expires=0)
+            session.clear()
+            return resp
     return decorated_function
 
 def master_required(f):
