@@ -429,7 +429,18 @@ def api_login():
     logger.debug(f"Raw request: Method={request.method}, Headers={dict(request.headers)}, Data={request.get_data(as_text=True)}")
 
     try:
-        data = request.get_json()
+        # Validate Content-Type
+        if not request.is_json:
+            logger.error("Request is not JSON")
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+
+        # Parse JSON manually to catch errors
+        try:
+            data = request.get_json(force=True)
+        except Exception as e:
+            logger.error(f"JSON parsing failed: {str(e)}, Raw data: {request.get_data(as_text=True)}")
+            return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
+
         username = data.get('username', '').lower().strip()
         password = data.get('password', '').strip()
 
@@ -437,7 +448,13 @@ def api_login():
             logger.error("Missing username or password")
             return jsonify({"error": "Username and password are required"}), 400
 
-        user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
+        # Fetch user data
+        try:
+            user_data = supabase_service.table('users_info').select('user_id', 'region', 'category', 'domain', 'role').eq('username', username).execute()
+        except Exception as e:
+            logger.error(f"Failed to query users_info for {username}: {str(e)}")
+            return jsonify({"error": "Database error: Unable to fetch user data"}), 500
+
         if not user_data.data:
             logger.error(f"Invalid username: {username}")
             return jsonify({"error": "Invalid username"}), 401
@@ -448,7 +465,13 @@ def api_login():
         domain = user_data.data[0]['domain']
         role = user_data.data[0]['role']
 
-        auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+        # Fetch auth user
+        try:
+            auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
+        except Exception as e:
+            logger.error(f"Failed to fetch auth user {user_id}: {str(e)}")
+            return jsonify({"error": "User not found in authentication system"}), 401
+
         if not auth_user.user:
             logger.error(f"User not found in authentication system: {username}")
             return jsonify({"error": "User not found in authentication system"}), 401
@@ -457,11 +480,21 @@ def api_login():
         email_confirmed = bool(auth_user.user.email_confirmed_at)
 
         if not email_confirmed:
-            supabase.auth.resend({"type": "signup", "email": email})
-            logger.info(f"Email not verified for {username}, resending verification email")
-            return jsonify({"error": "Please verify your email. A new verification email has been sent."}), 403
+            try:
+                supabase.auth.resend({"type": "signup", "email": email})
+                logger.info(f"Email not verified for {username}, resending verification email")
+                return jsonify({"error": "Please verify your email. A new verification email has been sent."}), 403
+            except Exception as e:
+                logger.error(f"Failed to resend verification email for {username}: {str(e)}")
+                return jsonify({"error": "Failed to resend verification email"}), 500
 
-        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        # Attempt login
+        try:
+            response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        except Exception as e:
+            logger.error(f"Supabase auth failed for {username}: {str(e)}")
+            return jsonify({"error": f"Authentication failed: {str(e)}"}), 401
+
         if response.user and response.user.id == user_id:
             session['region'] = region
             session['username'] = username
@@ -494,9 +527,9 @@ def api_login():
             logger.error(f"Invalid credentials for {username}")
             return jsonify({"error": "Invalid credentials"}), 401
     except Exception as e:
-        logger.error(f"Error in api_login: {str(e)}")
+        logger.error(f"Unexpected error in api_login: {str(e)}")
         return jsonify({"error": f"Login failed: {str(e)}"}), 500
-
+    
 @app.route('/password_reset', methods=['GET', 'POST'])
 def password_reset():
     if request.method == 'POST':
