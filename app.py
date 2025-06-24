@@ -867,7 +867,7 @@ def edit(id):
             fmc.cable_capacity = request.form.get('cable_capacity') or None
             fmc.no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
             fmc.updated_by = username
-            fmc.updated_at = datetime.utcnow()
+            fmc.updated_at = db.func.now()  # Use database's current timestamp
 
             # Validate joint types
             joint_types = request.form.getlist('joint_type[]')
@@ -883,7 +883,7 @@ def edit(id):
                     joint_type=jt,
                     created_by=fmc.updated_by,
                     updated_by=fmc.updated_by,
-                    updated_at=datetime.utcnow()
+                    updated_at=db.func.now()  # Use database's current timestamp
                 )
                 db.session.add(joint)
 
@@ -900,7 +900,7 @@ def edit(id):
                     pipe_type=pipe_type,
                     created_by=fmc.updated_by,
                     updated_by=fmc.updated_by,
-                    updated_at=datetime.utcnow()
+                    updated_at=db.func.now()  # Use database's current timestamp
                 )
                 db.session.add(pipe)
 

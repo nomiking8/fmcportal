@@ -22,17 +22,6 @@ document.addEventListener("DOMContentLoaded", function() {
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="FMCPortal Logo" class="h-16" onerror="this.style.display='none'">
         </div>
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Login to FMCPortal</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-6">
-                    {% for category, message in messages %}
-                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg mb-4" role="alert">
-                            <p class="font-medium">{{ message }}</p>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-6 relative">
