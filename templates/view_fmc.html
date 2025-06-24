@@ -3,188 +3,150 @@
     View FMC Data
 {% endblock %}
 {% block content %}
-<div class="max-w-6xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-8 text-white text-center bg-gradient-to-r from-indigo-600 to-purple-600 p-4 rounded-lg shadow-lg">
-        View FMC Data
-    </h1>
-
-    <!-- Search Bar and Export Button -->
-    <div class="mb-6 flex flex-col sm:flex-row gap-4">
-        <div class="relative flex-grow">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-            </div>
-            <input type="text" id="searchInput" placeholder="Search by NOC ID..." 
-                   class="w-full pl-10 p-3 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 text-white placeholder-gray-300 border-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 shadow-md hover:shadow-lg" 
-                   value="{{ search }}" onkeyup="searchTable()">
-        </div>
-        <a href="{{ url_for('export_fmc', search=search) }}" class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 shadow-md transition duration-200 flex items-center gap-2">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2M5 3h14a2 2 0 012 2v7H3V5a2 2 0 012-2z"></path>
-            </svg>
-            Export to Excel
-        </a>
+<div class="container mx-auto mt-10">
+    <h2 class="text-2xl font-bold mb-6">View FMC Data</h2>
+    <div class="mb-4">
+        <form method="GET" action="{{ url_for('view_fmc') }}" class="flex">
+            <input type="text" name="search" value="{{ search }}" placeholder="Search by NOC ID"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700">Search</button>
+        </form>
+        <a href="{{ url_for('export_fmc', search=search) }}"
+           class="inline-block mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Export to Excel</a>
     </div>
-
-    <div class="bg-white shadow-xl rounded-lg overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200" id="fmcTable">
-            <thead class="bg-teal-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Domain</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">NOC ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Created By</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Created At</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Details</th>
-                    {% if user_role == 'master' %}
-                    <th class="px-6 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Actions</th>
-                    {% endif %}
-                </tr>
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white border border-gray-300">
+            <thead class="bg-gray-100">
+            <tr>
+                <th class="py-2 px-4 border-b text-left">ID</th>
+                <th class="py-2 px-4 border-b text-left">Category</th>
+                <th class="py-2 px-4 border-b text-left">Domain</th>
+                <th class="py-2 px-4 border-b text-left">NOC ID</th>
+                <th class="py-2 px-4 border-b text-left">Created By</th>
+                <th class="py-2 px-4 border-b text-left">Created At</th>
+                <th class="py-2 px-4 border-b text-left">Updated At</th>
+                <th class="py-2 px-4 border-b text-left">Details</th>
+                {% if user_role == 'master' %}
+                <th class="py-2 px-4 border-b text-left">Actions</th>
+                {% endif %}
+            </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for fmc in fmcs.items %}
-                <tr class="hover:bg-teal-50 transition-colors duration-200">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.id }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.category }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.domain }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.cable_cut_noc_id or '-' }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.created_by }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pytz.timezone('Asia/Karachi')).strftime('%-m/%-d/%Y, %-I:%M:%S %p') }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <button onclick="showDetails({{ fmc.id }})" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-md transition duration-200">
-                            View Details
-                        </button>
-                    </td>
-                    {% if user_role == 'master' %}
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <a href="{{ url_for('edit', id=fmc.id) }}"
-                           class="inline-block bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 shadow-md transition duration-200">
-                            Edit
-                        </a>
-                        <form action="{{ url_for('delete', id=fmc.id) }}" method="POST" class="inline-block">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" onclick="return confirm('Are you sure you want to delete this entry?')"
-                                    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 shadow-md transition duration-200">
-                                Delete
-                            </button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
+            <tbody>
+            {% for item in fmcs %}
+            <tr class="hover:bg-gray-50">
+                <td class="py-2 px-4 border-b">{{ item.fmc.id }}</td>
+                <td class="py-2 px-4 border-b">{{ item.fmc.category }}</td>
+                <td class="py-2 px-4 border-b">{{ item.fmc.domain }}</td>
+                <td class="py-2 px-4 border-b">{{ item.fmc.cable_cut_noc_id or '-' }}</td>
+                <td class="py-2 px-4 border-b">{{ item.fmc.created_by }}</td>
+                <td class="py-2 px-4 border-b">{{ item.created_at_formatted }}</td>
+                <td class="py-2 px-4 border-b">{{ item.updated_at_formatted }}</td>
+                <td class="py-2 px-4 border-b">
+                    <button data-id="{{ item.fmc.id }}"
+                            class="view-details text-blue-600 hover:underline">View Details</button>
+                </td>
+                {% if user_role == 'master' %}
+                <td class="py-2 px-4 border-b">
+                    <a href="{{ url_for('edit', id=item.fmc.id) }}"
+                       class="text-blue-600 hover:underline mr-2">Edit</a>
+                    <form action="{{ url_for('delete', id=item.fmc.id) }}" method="POST" class="inline"
+                          onsubmit="return confirm('Are you sure you want to delete this entry?');">
+                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
             </tbody>
         </table>
-
-        <!-- Pagination -->
-        {% if fmcs.has_next or fmcs.has_prev %}
+        {% if fmcs %}
         <div class="mt-4 flex justify-center space-x-2">
             {% if fmcs.has_prev %}
             <a href="{{ url_for('view_fmc', page=fmcs.prev_num, search=search) }}"
-               class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition duration-200">
-                Previous
-            </a>
+               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Previous</a>
             {% endif %}
             {% for num in fmcs.iter_pages() %}
             {% if num %}
             {% if num == fmcs.page %}
-            <span class="bg-teal-700 text-white px-4 py-2 rounded-lg">{{ num }}</span>
+            <span class="px-4 py-2 bg-blue-600 text-white rounded">{{ num }}</span>
             {% else %}
             <a href="{{ url_for('view_fmc', page=num, search=search) }}"
-               class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition duration-200">{{ num }}</a>
+               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">{{ num }}</a>
             {% endif %}
             {% else %}
-            <span class="px-2">...</span>
+            <span class="px-4 py-2">...</span>
             {% endif %}
             {% endfor %}
             {% if fmcs.has_next %}
             <a href="{{ url_for('view_fmc', page=fmcs.next_num, search=search) }}"
-               class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition duration-200">
-                Next
-            </a>
+               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Next</a>
             {% endif %}
         </div>
         {% endif %}
     </div>
-
-    <!-- Details Modal -->
-    <div id="detailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg p-6 w-full max-w-lg sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl transform transition-all duration-300">
-            <h2 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-teal-800 border-b pb-2">FMC Details</h2>
-            <div id="modalContent" class="space-y-2 sm:space-y-4 text-gray-700 text-sm sm:text-base"></div>
-            <div class="mt-4 sm:mt-6 flex justify-end">
-                <button onclick="closeModal()" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-gray-700 shadow-md transition duration-200">Close</button>
-            </div>
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <h3 class="text-xl font-bold mb-4">FMC Details</h3>
+            <div id="modal-content"></div>
+            <button id="close-modal" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Close
+            </button>
         </div>
     </div>
 </div>
-
-<!-- JavaScript for Search and Modal -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-function searchTable() {
-    let input = document.getElementById("searchInput").value.toLowerCase();
-    let table = document.getElementById("fmcTable");
-    let tr = table.getElementsByTagName("tr");
-
-    for (let i = 1; i < tr.length; i++) {
-        let tdNoc = tr[i].getElementsByTagName("td")[3]; // NOC ID
-        if (tdNoc) {
-            let nocText = tdNoc.textContent || tdNoc.innerText;
-            tr[i].style.display = nocText.toLowerCase().indexOf(input) > -1 ? "" : "none";
-        }
-    }
-}
-
-function showDetails(id) {
-    fetch(`/api/fmc/${id}`)
-        .then(response => response.json())
-        .then(data => {
-            // Convert UTC to PKT (UTC+5:00)
-            const toPKT = (iso) => {
-                const date = new Date(data.created_at);
-                date.setHours(date.getHours() + 5);
-                const options = { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true };
-                return date.toLocaleString('en-US', options).replace(',', '');
-            };
-
-            let content = `
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                    <p><strong>Category:</strong> ${data.category || '-'}</p>
-                    <p><strong>Domain:</strong> ${data.domain || '-'}</p>
+    $(document).ready(function () {
+        $('.view-details').click(function () {
+            const fmcId = $(this).data('id');
+            $.get('/api/fmc/' + fmcId, function (data) {
+                const createdAt = new Date(data.created_at).toLocaleString('en-US', {
+                    timeZone: 'Asia/Karachi',
+                    month: 'numeric',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    second: 'numeric',
+                    hour12: true
+                });
+                const updatedAt = new Date(data.updated_at).toLocaleString('en-US', {
+                    timeZone: 'Asia/Karachi',
+                    month: 'numeric',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    second: 'numeric',
+                    hour12: true
+                });
+                const jointTypes = data.joint_types.map(jt => jt.joint_type).join(', ') || '-';
+                const pipeInfo = data.pipe_info[0] || {};
+                const html = `
+                    <p><strong>Category:</strong> ${data.category}</p>
+                    <p><strong>Domain:</strong> ${data.domain}</p>
                     <p><strong>NOC ID:</strong> ${data.cable_cut_noc_id || '-'}</p>
                     <p><strong>Cable Used (m):</strong> ${data.cable_used_meters ? data.cable_used_meters.toFixed(2) : '-'}</p>
                     <p><strong>Cable Type:</strong> ${data.cable_type || '-'}</p>
                     <p><strong>Cable Capacity:</strong> ${data.cable_capacity || '-'}</p>
                     <p><strong>No. of Joints:</strong> ${data.no_of_joints || '-'}</p>
-                </div>
-                <h3 class="text-base sm:text-lg font-semibold mt-4 sm:mt-6 text-amber-500">Joint Types:</h3>
-                <ul class="list-disc pl-5 mb-2 sm:mb-4">
-                    ${data.joint_types.length ? data.joint_types.map(jt => `<li>${jt.joint_type || '-'}</li>`).join('') : '<p>No joint types</p>'}
-                </ul>
-                <h3 class="text-base sm:text-lg font-semibold mt-4 text-indigo-600">Pipe Information:</h3>
-                ${data.pipe_info.length ? `
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                        <p><strong>Pipe Used (m):</strong> ${data.pipe_info[0].pipe_used_meters ? data.pipe_info[0].pipe_used_meters.toFixed(2) : '-'}</p>
-                        <p><strong>Pipe Size (in):</strong> ${data.pipe_info[0].pipe_size_inches ? data.pipe_info[0].pipe_size_inches.toFixed(2) : '-'}</p>
-                        <p><strong>Pipe Type:</strong> ${data.pipe_info[0].pipe_type || '-'}</p>
-                    </div>
-                ` : '<p>No pipe information</p>'}
-                <div class="border-t pt-2 sm:pt-4 mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                    <p><strong>Created By:</strong> ${data.created_by || '-'}</p>
-                    <p><strong>Created:</strong> ${toPKT(data.created_at)}</p>
-                    <p><strong>Updated By:</strong> ${data.updated_by || '-'}</p>
-                    <p><strong>Updated At:</strong> ${toPKT(data.updated_at)}</p>
-                </div>
-            `;
-            document.getElementById('modalContent').innerHTML = content;
-            document.getElementById('detailsModal').classList.remove('hidden');
+                    <p><strong>Joint Types:</strong> ${jointTypes}</p>
+                    <p><strong>Pipe Information:</strong></p>
+                    <p style="margin-left: 20px;"><strong>Pipe Used (m):</strong> ${pipeInfo.pipe_used_meters ? pipeInfo.pipe_used_meters.toFixed(2) : '-'}</p>
+                    <p style="margin-left: 20px;"><strong>Pipe Size (in):</strong> ${pipeInfo.pipe_size_inches ? pipeInfo.pipe_size_inches.toFixed(2) : '-'}</p>
+                    <p style="margin-left: 20px;"><strong>Pipe Type:</strong> ${pipeInfo.pipe_type || '-'}</p>
+                    <p><strong>Created By:</strong> ${data.created_by}</p>
+                    <p><strong>Created:</strong> ${createdAt}</p>
+                    <p><strong>Updated By:</strong> ${data.updated_by}</p>
+                    <p><strong>Updated At:</strong> ${updatedAt}</p>
+                `;
+                $('#modal-content').html(html);
+                $('#modal').removeClass('hidden');
+            });
         });
-}
-
-function closeModal() {
-    document.getElementById('detailsModal').classList.add('hidden');
-}
+        $('#close-modal').click(function () {
+            $('#modal').addClass('hidden');
+        });
+    });
 </script>
 {% endblock %}

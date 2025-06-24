@@ -822,9 +822,21 @@ def view_fmc():
         per_page = 10
         pagination = query.order_by(FMCInformation.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
+        # Convert timestamps to PKT for each FMC entry
+        pkt_tz = pytz.timezone('Asia/Karachi')
+        fmcs_with_formatted_dates = []
+        for fmc in pagination.items:
+            created_at_pkt = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%-m/%-d/%Y, %-I:%M:%S %p')
+            updated_at_pkt = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%-m/%-d/%Y, %-I:%M:%S %p')
+            fmcs_with_formatted_dates.append({
+                'fmc': fmc,
+                'created_at_formatted': created_at_pkt,
+                'updated_at_formatted': updated_at_pkt
+            })
+
         return render_template(
             'view_fmc.html',
-            fmcs=pagination,
+            fmcs=fmcs_with_formatted_dates,
             search=search,
             user_role=session.get('role')
         )
