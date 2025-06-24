@@ -3,94 +3,77 @@
     View FMC Data
 {% endblock %}
 {% block content %}
-<div class="container mx-auto mt-10">
-    <h2 class="text-2xl font-bold mb-6">View FMC Data</h2>
-    <div class="mb-4">
-        <form method="GET" action="{{ url_for('view_fmc') }}" class="flex">
-            <input type="text" name="search" value="{{ search }}" placeholder="Search by NOC ID"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700">Search</button>
-        </form>
-        <a href="{{ url_for('export_fmc', search=search) }}"
-           class="inline-block mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Export to Excel</a>
-    </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full bg-white border border-gray-300">
-            <thead class="bg-gray-100">
-            <tr>
-                <th class="py-2 px-4 border-b text-left">ID</th>
-                <th class="py-2 px-4 border-b text-left">Category</th>
-                <th class="py-2 px-4 border-b text-left">Domain</th>
-                <th class="py-2 px-4 border-b text-left">NOC ID</th>
-                <th class="py-2 px-4 border-b text-left">Created By</th>
-                <th class="py-2 px-4 border-b text-left">Created At</th>
-                <th class="py-2 px-4 border-b text-left">Updated At</th>
-                <th class="py-2 px-4 border-b text-left">Details</th>
-                {% if user_role == 'master' %}
-                <th class="py-2 px-4 border-b text-left">Actions</th>
-                {% endif %}
-            </tr>
-            </thead>
-            <tbody>
-            {% for fmc in fmcs.items %}
-            <tr class="hover:bg-gray-50">
-                <td class="py-2 px-4 border-b">{{ fmc.id }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.category }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.domain }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.cable_cut_noc_id or '-' }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.created_by }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.created_at_formatted }}</td>
-                <td class="py-2 px-4 border-b">{{ fmc.updated_at_formatted }}</td>
-                <td class="py-2 px-4 border-b">
-                    <button data-id="{{ fmc.id }}"
-                            class="view-details text-blue-600 hover:underline">View Details</button>
-                </td>
-                {% if user_role == 'master' %}
-                <td class="py-2 px-4 border-b">
-                    <a href="{{ url_for('edit', id=fmc.id) }}"
-                       class="text-blue-600 hover:underline mr-2">Edit</a>
-                    <form action="{{ url_for('delete', id=fmc.id) }}" method="POST" class="inline"
-                          onsubmit="return confirm('Are you sure you want to delete this entry?');">
-                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                    </form>
-                </td>
-                {% endif %}
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% if fmcs.items %}
-        <div class="mt-4 flex justify-center space-x-2">
-            {% if fmcs.has_prev %}
-            <a href="{{ url_for('view_fmc', page=fmcs.prev_num, search=search) }}"
-               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Previous</a>
+<div>
+    <h2>View FMC Data</h2>
+    <form method="GET" action="{{ url_for('view_fmc') }}">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by NOC ID">
+        <input type="submit" value="Search">
+    </form>
+    <a href="{{ url_for('export_fmc', search=search) }}">Export to Excel</a>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>Domain</th>
+            <th>NOC ID</th>
+            <th>Created By</th>
+            <th>Created At</th>
+            <th>Updated At</th>
+            <th>Details</th>
+            {% if user_role == 'master' %}
+            <th>Actions</th>
             {% endif %}
-            {% for num in fmcs.iter_pages() %}
-            {% if num %}
-            {% if num == fmcs.page %}
-            <span class="px-4 py-2 bg-blue-600 text-white rounded">{{ num }}</span>
-            {% else %}
-            <a href="{{ url_for('view_fmc', page=num, search=search) }}"
-               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">{{ num }}</a>
+        </tr>
+        {% for fmc in fmcs.items %}
+        <tr>
+            <td>{{ fmc.id }}</td>
+            <td>{{ fmc.category }}</td>
+            <td>{{ fmc.domain }}</td>
+            <td>{{ fmc.cable_cut_noc_id or '-' }}</td>
+            <td>{{ fmc.created_by }}</td>
+            <td>{{ fmc.created_at_formatted }}</td>
+            <td>{{ fmc.updated_at_formatted }}</td>
+            <td>
+                <button data-id="{{ fmc.id }}" class="view-details">View Details</button>
+            </td>
+            {% if user_role == 'master' %}
+            <td>
+                <a href="{{ url_for('edit', id=fmc.id) }}">Edit</a>
+                <form action="{{ url_for('delete', id=fmc.id) }}" method="POST" style="display:inline;"
+                      onsubmit="return confirm('Are you sure you want to delete this entry?');">
+                    <input type="submit" value="Delete">
+                </form>
+            </td>
             {% endif %}
-            {% else %}
-            <span class="px-4 py-2">...</span>
-            {% endif %}
-            {% endfor %}
-            {% if fmcs.has_next %}
-            <a href="{{ url_for('view_fmc', page=fmcs.next_num, search=search) }}"
-               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Next</a>
-            {% endif %}
-        </div>
+        </tr>
+        {% endfor %}
+    </table>
+    {% if fmcs.items %}
+    <div>
+        {% if fmcs.has_prev %}
+        <a href="{{ url_for('view_fmc', page=fmcs.prev_num, search=search) }}">Previous</a>
+        {% endif %}
+        {% for num in fmcs.iter_pages() %}
+        {% if num %}
+        {% if num == fmcs.page %}
+        <span>{{ num }}</span>
+        {% else %}
+        <a href="{{ url_for('view_fmc', page=num, search=search) }}">{{ num }}</a>
+        {% endif %}
+        {% else %}
+        <span>...</span>
+        {% endif %}
+        {% endfor %}
+        {% if fmcs.has_next %}
+        <a href="{{ url_for('view_fmc', page=fmcs.next_num, search=search) }}">Next</a>
         {% endif %}
     </div>
-    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
-        <div class="bg-white rounded-lg p-6 w-full max-w-2xl">
-            <h3 class="text-xl font-bold mb-4">FMC Details</h3>
+    {% endif %}
+    <div id="modal" style="display:none;">
+        <div>
+            <h3>FMC Details</h3>
             <div id="modal-content"></div>
-            <button id="close-modal" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                Close
-            </button>
+            <button id="close-modal">Close</button>
         </div>
     </div>
 </div>
@@ -141,11 +124,11 @@
                     <p><strong>Updated At:</strong> ${updatedAt}</p>
                 `;
                 $('#modal-content').html(html);
-                $('#modal').removeClass('hidden');
+                $('#modal').show();
             });
         });
         $('#close-modal').click(function () {
-            $('#modal').addClass('hidden');
+            $('#modal').hide();
         });
     });
 </script>
