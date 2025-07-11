@@ -1445,7 +1445,7 @@ def export_fmc():
                 chart5.y_axis.title = "Meters"
                 chart5.x_axis.title = "Cable Capacity"
                 chart5.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart5, "H55")
+                summary_ws.add_chart(chart5, "H57")
 
         # Save workbook
         output = BytesIO()
