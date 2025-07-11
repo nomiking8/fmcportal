@@ -989,7 +989,6 @@ def get_fmc_details(id):
         return jsonify({'error': str(e)}), 500
 
 # ... (other imports and configurations remain unchanged)
-
 @app.route('/export_fmc', methods=['GET'])
 @login_required
 def export_fmc():
@@ -1193,7 +1192,7 @@ def export_fmc():
             adjusted_width = max_length + 2
             data_sheet.column_dimensions[column].width = adjusted_width
 
-        # Add charts to Summary sheet
+        # Add charts to Summary sheet with adjusted positions to avoid overlap
         if chart_data['noc_by_category']:
             # Bar Chart: NOC ID by Category
             bar_chart = BarChart()
@@ -1207,9 +1206,11 @@ def export_fmc():
             bar_chart.set_categories(categories)
             bar_chart.dataLabels = DataLabelList()
             bar_chart.dataLabels.showVal = True
+            bar_chart.height = 8  # Adjust chart size
+            bar_chart.width = 12
             summary_sheet.add_chart(bar_chart, "E2")
 
-            # Pie Chart: NOC ID by Category
+            # Pie Chart: NOC ID by Category Distribution
             pie_chart = PieChart()
             pie_chart.title = "NOC ID by Category Distribution"
             pie_data = Reference(summary_sheet, min_col=2, min_row=2, max_row=3)
@@ -1218,7 +1219,9 @@ def export_fmc():
             pie_chart.set_categories(pie_categories)
             pie_chart.dataLabels = DataLabelList()
             pie_chart.dataLabels.showPercent = True
-            summary_sheet.add_chart(pie_chart, "E15")
+            pie_chart.height = 8
+            pie_chart.width = 12
+            summary_sheet.add_chart(pie_chart, "E15")  # Moved down to avoid overlap
 
         if chart_data['noc_by_domain']:
             # Bar Chart: NOC ID by Domain
@@ -1242,7 +1245,9 @@ def export_fmc():
             bar_chart_domain.set_categories(categories)
             bar_chart_domain.dataLabels = DataLabelList()
             bar_chart_domain.dataLabels.showVal = True
-            summary_sheet.add_chart(bar_chart_domain, "K2")
+            bar_chart_domain.height = 8
+            bar_chart_domain.width = 12
+            summary_sheet.add_chart(bar_chart_domain, "K28")  # Moved further down to avoid overlap
 
         if chart_data['month_counts']:
             # Bar Chart: NOC ID Count by Month (2025)
@@ -1265,7 +1270,9 @@ def export_fmc():
             bar_chart_month.set_categories(categories)
             bar_chart_month.dataLabels = DataLabelList()
             bar_chart_month.dataLabels.showVal = True
-            summary_sheet.add_chart(bar_chart_month, "K15")
+            bar_chart_month.height = 8
+            bar_chart_month.width = 12
+            summary_sheet.add_chart(bar_chart_month, "K45")  # Moved further down to avoid overlap
 
         # Save Excel file
         output = BytesIO()
