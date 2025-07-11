@@ -995,8 +995,8 @@ def export_fmc():
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-        from openpyxl.chart import BarChart, PieChart, Reference, Series
-        from openpyxl.chart.label import DataLabelList
+        from openpyxl.chart import BarChart, Reference, Series
+        from openpyxl.chart.axis import TextAxis, ChartLines
 
         search = request.args.get('search', '').strip()
         year = request.args.get('year', '').strip()
@@ -1047,11 +1047,7 @@ def export_fmc():
 
         # Prepare Summary sheet data
         summary_records = []
-        chart_data = {
-            'noc_by_category': [],
-            'noc_by_domain': [],
-            'month_counts': []
-        }
+        chart_data = {}
         if data:
             # Total NOC IDs
             total_noc_ids = len(data)
@@ -1081,38 +1077,77 @@ def export_fmc():
             pipe_size_counts = Counter(pipe_sizes)
             pipe_size_entries = sum(pipe_size_counts.values())
 
-            # NOC ID by Category for chart
+            # NOC ID by Category
             noc_by_category = (
                 query.with_entities(FMCInformation.category, db.func.count(FMCInformation.cable_cut_noc_id))
                 .group_by(FMCInformation.category)
                 .all()
             )
-            chart_data['noc_by_category'] = [(cat, count) for cat, count in noc_by_category]
+            chart_data['noc_by_category'] = {
+                'labels': [row[0] for row in noc_by_category],
+                'values': [row[1] for row in noc_by_category]
+            }
 
-            # NOC ID by Domain for chart
+            # NOC ID by Domain
             noc_by_domain = (
                 query.with_entities(FMCInformation.domain, db.func.count(FMCInformation.cable_cut_noc_id))
                 .group_by(FMCInformation.domain)
                 .all()
             )
-            chart_data['noc_by_domain'] = [(dom, count) for dom, count in noc_by_domain]
+            chart_data['noc_by_domain'] = {
+                'labels': [row[0] for row in noc_by_domain],
+                'values': [row[1] for row in noc_by_domain]
+            }
 
-            # Month-wise NOC ID counts for 2025
-            if year == '2025' or not year or year == 'All':
-                month_counts = (
-                    query.filter(db.extract('year', FMCInformation.created_at) == 2025)
-                    .with_entities(
-                        db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
-                        db.func.count(FMCInformation.cable_cut_noc_id)
-                    )
-                    .group_by('month')
-                    .order_by('month')
-                    .all()
+            # NOC ID Count by Month (2025)
+            month_counts = (
+                query.filter(db.extract('year', FMCInformation.created_at) == 2025)
+                .with_entities(
+                    db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                    db.func.count(FMCInformation.cable_cut_noc_id)
                 )
-                month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                chart_data['month_counts'] = [(month_labels[int(month)-1], count) for month, count in month_counts]
-            else:
-                chart_data['month_counts'] = [(month, 0) for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']]
+                .group_by('month')
+                .order_by('month')
+                .all()
+            )
+            month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            month_data = [0] * 12
+            for month, count in month_counts:
+                month_data[int(month) - 1] = count
+            chart_data['noc_by_month'] = {
+                'labels': month_labels,
+                'values': month_data
+            }
+
+            # NOC ID Count by Year
+            year_counts = (
+                query.with_entities(
+                    db.extract('year', FMCInformation.created_at).label('year'),
+                    db.func.count(FMCInformation.cable_cut_noc_id)
+                )
+                .group_by('year')
+                .all()
+            )
+            year_labels = sorted(set(str(int(year)) for year, _ in year_counts))
+            year_data = [0] * len(year_labels)
+            for year, count in year_counts:
+                year_data[year_labels.index(str(int(year)))] = count
+            chart_data['noc_by_year'] = {
+                'labels': year_labels,
+                'values': year_data
+            }
+
+            # Cable Capacity Distribution
+            cable_capacity_rows = (
+                query.filter(FMCInformation.cable_capacity.isnot(None))
+                .with_entities(FMCInformation.cable_capacity, db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0))
+                .group_by(FMCInformation.cable_capacity)
+                .all()
+            )
+            chart_data['cable_capacity'] = {
+                'labels': [row[0] for row in cable_capacity_rows],
+                'values': [float(row[1]) for row in cable_capacity_rows]
+            }
 
             # Build summary rows
             summary_records.append({'Metric': 'Total NOC IDs', 'Value': total_noc_ids, 'Details': ''})
@@ -1128,158 +1163,235 @@ def export_fmc():
             for pipe_size, count in pipe_size_counts.items():
                 summary_records.append({'Metric': f'{pipe_size:.2f} in', 'Value': count, 'Details': ''})
 
-        # Create DataFrames
-        data_df = pd.DataFrame(data_records)
-        summary_df = pd.DataFrame(summary_records)
-
-        # Create Excel file
+        # Create Excel workbook
         wb = Workbook()
-        summary_sheet = wb.active
-        summary_sheet.title = 'Summary'
-        data_sheet = wb.create_sheet('FMC Data')
+        summary_ws = wb.active
+        summary_ws.title = 'Summary'
+        data_ws = wb.create_sheet('FMC Data')
 
-        # Write Summary sheet with box-like styling
-        border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-        header_fill = PatternFill(start_color='ADD8E6', end_color='ADD8E6', fill_type='solid')
-        for r_idx, row in enumerate(summary_df.to_dict('records'), 1):
-            for c_idx, value in enumerate(row.values(), 1):
-                cell = summary_sheet.cell(row=r_idx+1, column=c_idx)
-                cell.value = value
+        # Styling definitions
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        center_align = Alignment(horizontal='center', vertical='center')
+        left_align = Alignment(horizontal='left', vertical='center')
+
+        # Data sheet: Write and style headers
+        data_df = pd.DataFrame(data_records)
+        if not data_df.empty:
+            headers = list(data_records[0].keys())
+            for col_num, header in enumerate(headers, 1):
+                cell = data_ws.cell(row=1, column=col_num)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_align
                 cell.border = border
-                cell.alignment = Alignment(horizontal='center', vertical='center')
-                if r_idx == 1:
-                    cell.font = Font(bold=True)
-                    cell.fill = header_fill
-                elif row['Metric'] in ['Longhaul', 'GPON_FMC'] or row['Details'] == '':
-                    cell.fill = PatternFill(start_color='F5F5F5', end_color='F5F5F5', fill_type='solid')
 
-        # Adjust Summary sheet column widths
-        for col in summary_sheet.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            adjusted_width = max_length + 2
-            summary_sheet.column_dimensions[column].width = adjusted_width
+            # Write data and apply alignment
+            for row_num, row_data in enumerate(data_records, 2):
+                for col_num, value in enumerate(row_data.values(), 1):
+                    cell = data_ws.cell(row=row_num, column=col_num)
+                    cell.value = value
+                    cell.alignment = center_align
+                    cell.border = border
 
-        # Write Data sheet with enhanced styling
-        for r_idx, row in enumerate(data_df.to_dict('records'), 1):
-            for c_idx, value in enumerate(row.values(), 1):
-                cell = data_sheet.cell(row=r_idx+1, column=c_idx)
-                cell.value = value
-                cell.border = border
-                cell.alignment = Alignment(horizontal='center', vertical='center')
-        for c_idx, column in enumerate(data_df.columns, 1):
-            cell = data_sheet.cell(row=1, column=c_idx)
-            cell.value = column
-            cell.font = Font(bold=True)
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = border
+            # Adjust column widths
+            for col in data_ws.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = max_length + 2
+                data_ws.column_dimensions[column].width = adjusted_width
 
-        # Adjust Data sheet column widths
-        for col in data_sheet.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            adjusted_width = max_length + 2
-            data_sheet.column_dimensions[column].width = adjusted_width
+        # Summary sheet: Create box-like layout
+        summary_df = pd.DataFrame(summary_records)
+        current_row = 2
+        box_width = 4
+        box_height = 4
+        boxes_per_row = 3
+        box_spacing = 2
 
-        # Add charts to Summary sheet with proper spacing
-        if chart_data['noc_by_category']:
-            # Bar Chart: NOC ID by Category
-            bar_chart = BarChart()
-            bar_chart.title = "NOC ID by Category"
-            bar_chart.x_axis.title = "Category"
-            bar_chart.y_axis.title = "Count"
-            bar_chart.height = 8  # Adjust chart height
-            bar_chart.width = 12  # Adjust chart width
-            categories = Reference(summary_sheet, min_col=1, min_row=2, max_row=3)
-            values = Reference(summary_sheet, min_col=2, min_row=2, max_row=3)
-            series = Series(values, title="NOC ID Count")
-            bar_chart.append(series)
-            bar_chart.set_categories(categories)
-            bar_chart.dataLabels = DataLabelList()
-            bar_chart.dataLabels.showVal = True
-            summary_sheet.add_chart(bar_chart, "E2")  # Position at top-right
+        # Define summary boxes data
+        boxes = [
+            {'title': 'Total NOC IDs', 'value': total_noc_ids, 'details': '', 'subitems': [
+                {'label': 'Longhaul', 'value': longhaul_count},
+                {'label': 'GPON_FMC', 'value': gpon_fmc_count}
+            ]},
+            {'title': 'Total Cable Used', 'value': f'{total_cable_used:.2f} m', 'details': 'Total Meters of Cable Deployed'},
+            {'title': 'Total Joints', 'value': total_joints, 'details': 'Number of Joints Used'},
+            {'title': 'Total Pipe Used', 'value': f'{total_pipe_used:.2f} m', 'details': 'Total Meters of Pipe Deployed'},
+            {'title': 'Entries by Cable Type', 'value': cable_type_entries, 'subitems': [
+                {'label': k, 'value': v} for k, v in cable_type_counts.items()
+            ]},
+            {'title': 'Entries by Pipe Size', 'value': pipe_size_entries, 'subitems': [
+                {'label': f'{k:.2f} in', 'value': v} for k, v in pipe_size_counts.items()
+            ]}
+        ]
 
-            # Pie Chart: NOC ID by Category
-            pie_chart = PieChart()
-            pie_chart.title = "NOC ID by Category Distribution"
-            pie_chart.height = 8
-            pie_chart.width = 12
-            pie_data = Reference(summary_sheet, min_col=2, min_row=2, max_row=3)
-            pie_categories = Reference(summary_sheet, min_col=1, min_row=2, max_row=3)
-            pie_chart.add_data(pie_data, titles_from_data=False)
-            pie_chart.set_categories(pie_categories)
-            pie_chart.dataLabels = DataLabelList()
-            pie_chart.dataLabels.showPercent = True
-            summary_sheet.add_chart(pie_chart, "E12")  # Below bar chart with 10-row gap
+        # Write summary boxes
+        for idx, box in enumerate(boxes):
+            col_start = 2 + (idx % boxes_per_row) * (box_width + box_spacing)
+            row_start = current_row + (idx // boxes_per_row) * (box_height + box_spacing)
 
-        if chart_data['noc_by_domain']:
-            # Bar Chart: NOC ID by Domain
-            domain_start_row = len(cable_type_counts) + len(pipe_size_counts) + 8
-            domain_data = [(dom, count) for dom, count in chart_data['noc_by_domain']]
-            for idx, (dom, count) in enumerate(domain_data, domain_start_row):
-                summary_sheet.cell(row=idx, column=1).value = dom
-                summary_sheet.cell(row=idx, column=2).value = count
-                summary_sheet.cell(row=idx, column=1).border = border
-                summary_sheet.cell(row=idx, column=2).border = border
-                summary_sheet.cell(row=idx, column=1).alignment = Alignment(horizontal='center')
-                summary_sheet.cell(row=idx, column=2).alignment = Alignment(horizontal='center')
-            bar_chart_domain = BarChart()
-            bar_chart_domain.title = "NOC ID by Domain"
-            bar_chart_domain.x_axis.title = "Domain"
-            bar_chart_domain.y_axis.title = "Count"
-            bar_chart_domain.height = 8
-            bar_chart_domain.width = 12
-            categories = Reference(summary_sheet, min_col=1, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
-            values = Reference(summary_sheet, min_col=2, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
-            series = Series(values, title="NOC ID Count")
-            bar_chart_domain.append(series)
-            bar_chart_domain.set_categories(categories)
-            bar_chart_domain.dataLabels = DataLabelList()
-            bar_chart_domain.dataLabels.showVal = True
-            summary_sheet.add_chart(bar_chart_domain, "S2")  # Right side, top
+            # Title
+            title_cell = summary_ws.cell(row=row_start, column=col_start)
+            title_cell.value = box['title']
+            title_cell.font = Font(bold=True, size=12)
+            title_cell.fill = PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+            title_cell.alignment = center_align
+            summary_ws.merge_cells(start_row=row_start, start_column=col_start, end_row=row_start, end_column=col_start + box_width - 1)
+            for col in range(col_start, col_start + box_width):
+                summary_ws.cell(row=row_start, column=col).border = border
 
-        if chart_data['month_counts']:
-            # Bar Chart: NOC ID Count by Month (2025)
-            month_start_row = len(cable_type_counts) + len(pipe_size_counts) + len(domain_data) + 10
-            for idx, (month, count) in enumerate(chart_data['month_counts'], month_start_row):
-                summary_sheet.cell(row=idx, column=1).value = month
-                summary_sheet.cell(row=idx, column=2).value = count
-                summary_sheet.cell(row=idx, column=1).border = border
-                summary_sheet.cell(row=idx, column=2).border = border
-                summary_sheet.cell(row=idx, column=1).alignment = Alignment(horizontal='center')
-                summary_sheet.cell(row=idx, column=2).alignment = Alignment(horizontal='center')
-            bar_chart_month = BarChart()
-            bar_chart_month.title = "NOC ID Count by Month (2025)"
-            bar_chart_month.x_axis.title = "Month"
-            bar_chart_month.y_axis.title = "Count"
-            bar_chart_month.height = 8
-            bar_chart_month.width = 12
-            categories = Reference(summary_sheet, min_col=1, min_row=month_start_row, max_row=month_start_row+11)
-            values = Reference(summary_sheet, min_col=2, min_row=month_start_row, max_row=month_start_row+11)
-            series = Series(values, title="NOC ID Count")
-            bar_chart_month.append(series)
-            bar_chart_month.set_categories(categories)
-            bar_chart_month.dataLabels = DataLabelList()
-            bar_chart_month.dataLabels.showVal = True
-            summary_sheet.add_chart(bar_chart_month, "S22")  # Right side, below domain chart with 20-row gap
+            # Value
+            value_cell = summary_ws.cell(row=row_start + 1, column=col_start)
+            value_cell.value = box['value']
+            value_cell.font = Font(bold=True, size=14, color="00008B")
+            value_cell.alignment = center_align
+            summary_ws.merge_cells(start_row=row_start + 1, start_column=col_start, end_row=row_start + 1, end_column=col_start + box_width - 1)
+            for col in range(col_start, col_start + box_width):
+                summary_ws.cell(row=row_start + 1, column=col).border = border
 
-        # Save Excel file
+            # Details or subitems
+            if 'subitems' in box:
+                for i, subitem in enumerate(box['subitems']):
+                    label_cell = summary_ws.cell(row=row_start + 2 + i, column=col_start)
+                    label_cell.value = f"{subitem['label']}: {subitem['value']}"
+                    label_cell.alignment = left_align
+                    label_cell.border = border
+            else:
+                details_cell = summary_ws.cell(row=row_start + 2, column=col_start)
+                details_cell.value = box.get('details', '')
+                details_cell.alignment = left_align
+                details_cell.border = border
+                summary_ws.merge_cells(start_row=row_start + 2, start_column=col_start, end_row=row_start + 2, end_column=col_start + box_width - 1)
+
+            # Apply borders to entire box
+            for row in range(row_start, row_start + box_height):
+                for col in range(col_start, col_start + box_width):
+                    cell = summary_ws.cell(row=row, column=col)
+                    cell.border = border
+
+            if (idx + 1) % boxes_per_row == 0:
+                current_row += box_height + box_spacing
+
+        # Add charts to Summary sheet
+        chart_row_start = current_row + box_height + 4
+        chart_width = 15
+        chart_height = 10
+        chart_spacing = 2
+
+        # Chart 1: NOC ID by Category
+        chart1 = BarChart()
+        chart1.title = "NOC ID by Category"
+        chart1.style = 10
+        chart1.height = chart_height
+        chart1.width = chart_width
+        chart1_data = [['Category', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_category']['labels'], chart_data['noc_by_category']['values'])]
+        for row_num, row_data in enumerate(chart1_data, chart_row_start):
+            for col_num, value in enumerate(row_data, 1):
+                summary_ws.cell(row=row_num, column=col_num).value = value
+        data_ref = Reference(summary_ws, min_col=2, min_row=chart_row_start, max_row=chart_row_start + len(chart1_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart1_data) - 1)
+        chart1.add_data(data_ref, titles_from_data=True)
+        chart1.set_categories(cats_ref)
+        chart1.y_axis.title = "Count"
+        chart1.x_axis.title = "Category"
+        chart1.y_axis.majorGridlines = ChartLines()
+        summary_ws.add_chart(chart1, f"A{chart_row_start + len(chart1_data) + 2}")
+
+        # Chart 2: NOC ID by Domain
+        chart2 = BarChart()
+        chart2.title = "NOC ID by Domain"
+        chart2.style = 10
+        chart2.height = chart_height
+        chart2.width = chart_width
+        chart2_data = [['Domain', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_domain']['labels'], chart_data['noc_by_domain']['values'])]
+        for row_num, row_data in enumerate(chart2_data, chart_row_start):
+            for col_num, value in enumerate(row_data, chart_width + chart_spacing + 1):
+                summary_ws.cell(row=row_num, column=col_num).value = value
+        data_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 2, min_row=chart_row_start, max_row=chart_row_start + len(chart2_data) - 1, max_col=chart_width + chart_spacing + 2)
+        cats_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart2_data) - 1)
+        chart2.add_data(data_ref, titles_from_data=True)
+        chart2.set_categories(cats_ref)
+        chart2.y_axis.title = "Count"
+        chart2.x_axis.title = "Domain"
+        chart2.y_axis.majorGridlines = ChartLines()
+        summary_ws.add_chart(chart2, f"{chr(65 + chart_width + chart_spacing)}{chart_row_start + len(chart2_data) + 2}")
+
+        # Chart 3: NOC ID Count by Month (2025)
+        chart3 = BarChart()
+        chart3.title = "NOC ID Count by Month (2025)"
+        chart3.style = 10
+        chart3.height = chart_height
+        chart3.width = chart_width
+        chart3_data = [['Month', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_month']['labels'], chart_data['noc_by_month']['values'])]
+        for row_num, row_data in enumerate(chart3_data, chart_row_start):
+            for col_num, value in enumerate(row_data, (chart_width + chart_spacing) * 2 + 1):
+                summary_ws.cell(row=row_num, column=col_num).value = value
+        data_ref = Reference(summary_ws, min_col=(chart_width + chart_spacing) * 2 + 2, min_row=chart_row_start, max_row=chart_row_start + len(chart3_data) - 1, max_col=(chart_width + chart_spacing) * 2 + 2)
+        cats_ref = Reference(summary_ws, min_col=(chart_width + chart_spacing) * 2 + 1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart3_data) - 1)
+        chart3.add_data(data_ref, titles_from_data=True)
+        chart3.set_categories(cats_ref)
+        chart3.y_axis.title = "Count"
+        chart3.x_axis.title = "Month"
+        chart3.y_axis.majorGridlines = ChartLines()
+        summary_ws.add_chart(chart3, f"{chr(65 + (chart_width + chart_spacing) * 2)}{chart_row_start + len(chart3_data) + 2}")
+
+        # Chart 4: NOC ID Count by Year
+        chart4 = BarChart()
+        chart4.title = "NOC ID Count by Year"
+        chart4.style = 10
+        chart4.height = chart_height
+        chart4.width = chart_width
+        chart4_data = [['Year', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_year']['labels'], chart_data['noc_by_year']['values'])]
+        next_row_start = chart_row_start + len(chart3_data) + chart_height + 4
+        for row_num, row_data in enumerate(chart4_data, next_row_start):
+            for col_num, value in enumerate(row_data, 1):
+                summary_ws.cell(row=row_num, column=col_num).value = value
+        data_ref = Reference(summary_ws, min_col=2, min_row=next_row_start, max_row=next_row_start + len(chart4_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=next_row_start + 1, max_row=next_row_start + len(chart4_data) - 1)
+        chart4.add_data(data_ref, titles_from_data=True)
+        chart4.set_categories(cats_ref)
+        chart4.y_axis.title = "Count"
+        chart4.x_axis.title = "Year"
+        chart4.y_axis.majorGridlines = ChartLines()
+        summary_ws.add_chart(chart4, f"A{next_row_start + len(chart4_data) + 2}")
+
+        # Chart 5: Cable Capacity Distribution
+        chart5 = BarChart()
+        chart5.title = "Cable Capacity Distribution"
+        chart5.style = 10
+        chart5.height = chart_height
+        chart5.width = chart_width
+        chart5_data = [['Cable Capacity', 'Meters']] + [[label, value] for label, value in zip(chart_data['cable_capacity']['labels'], chart_data['cable_capacity']['values'])]
+        for row_num, row_data in enumerate(chart5_data, next_row_start):
+            for col_num, value in enumerate(row_data, chart_width + chart_spacing + 1):
+                summary_ws.cell(row=row_num, column=col_num).value = value
+        data_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 2, min_row=next_row_start, max_row=next_row_start + len(chart5_data) - 1, max_col=chart_width + chart_spacing + 2)
+        cats_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 1, min_row=next_row_start + 1, max_row=next_row_start + len(chart5_data) - 1)
+        chart5.add_data(data_ref, titles_from_data=True)
+        chart5.set_categories(cats_ref)
+        chart5.y_axis.title = "Meters"
+        chart5.x_axis.title = "Cable Capacity"
+        chart5.y_axis.majorGridlines = ChartLines()
+        summary_ws.add_chart(chart5, f"{chr(65 + chart_width + chart_spacing)}{next_row_start + len(chart5_data) + 2}")
+
+        # Save workbook
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        # Create response with file
+        # Create response
         response = make_response(send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
