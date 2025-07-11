@@ -1333,7 +1333,7 @@ def export_fmc():
         # Add charts to Summary sheet only if data exists
         if data and chart_data:
             # Chart positions to prevent overlap
-            chart_positions = ['A50', 'J50', 'A85', 'J85', 'A120']
+            chart_positions = ['B15', 'J15', 'B34', 'J34', 'I49']
             chart_width = 15
             chart_height = 10
 
