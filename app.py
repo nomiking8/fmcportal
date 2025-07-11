@@ -989,6 +989,7 @@ def get_fmc_details(id):
         return jsonify({'error': str(e)}), 500
 
 # ... (other imports and configurations remain unchanged)
+
 @app.route('/export_fmc', methods=['GET'])
 @login_required
 def export_fmc():
@@ -1048,6 +1049,7 @@ def export_fmc():
         # Prepare Summary sheet data
         summary_records = []
         chart_data = {}
+        
         if data:
             # Total NOC IDs
             total_noc_ids = len(data)
@@ -1157,11 +1159,25 @@ def export_fmc():
             summary_records.append({'Metric': 'Total Joints', 'Value': total_joints, 'Details': 'Number of Joints Used'})
             summary_records.append({'Metric': 'Total Pipe Used', 'Value': f'{total_pipe_used:.2f} m', 'Details': 'Total Meters of Pipe Deployed'})
             summary_records.append({'Metric': 'Entries by Cable Type', 'Value': cable_type_entries, 'Details': ''})
+            
             for cable_type, count in cable_type_counts.items():
                 summary_records.append({'Metric': cable_type, 'Value': count, 'Details': ''})
+            
             summary_records.append({'Metric': 'Entries by Pipe Size', 'Value': pipe_size_entries, 'Details': ''})
             for pipe_size, count in pipe_size_counts.items():
                 summary_records.append({'Metric': f'{pipe_size:.2f} in', 'Value': count, 'Details': ''})
+        else:
+            # Initialize empty values when no data
+            total_noc_ids = 0
+            longhaul_count = 0
+            gpon_fmc_count = 0
+            total_cable_used = 0
+            total_joints = 0
+            total_pipe_used = 0
+            cable_type_counts = Counter()
+            pipe_size_counts = Counter()
+            cable_type_entries = 0
+            pipe_size_entries = 0
 
         # Create Excel workbook
         wb = Workbook()
@@ -1222,19 +1238,44 @@ def export_fmc():
 
         # Define summary boxes data
         boxes = [
-            {'title': 'Total NOC IDs', 'value': total_noc_ids, 'details': '', 'subitems': [
-                {'label': 'Longhaul', 'value': longhaul_count},
-                {'label': 'GPON_FMC', 'value': gpon_fmc_count}
-            ]},
-            {'title': 'Total Cable Used', 'value': f'{total_cable_used:.2f} m', 'details': 'Total Meters of Cable Deployed'},
-            {'title': 'Total Joints', 'value': total_joints, 'details': 'Number of Joints Used'},
-            {'title': 'Total Pipe Used', 'value': f'{total_pipe_used:.2f} m', 'details': 'Total Meters of Pipe Deployed'},
-            {'title': 'Entries by Cable Type', 'value': cable_type_entries, 'subitems': [
-                {'label': k, 'value': v} for k, v in cable_type_counts.items()
-            ]},
-            {'title': 'Entries by Pipe Size', 'value': pipe_size_entries, 'subitems': [
-                {'label': f'{k:.2f} in', 'value': v} for k, v in pipe_size_counts.items()
-            ]}
+            {
+                'title': 'Total NOC IDs', 
+                'value': total_noc_ids, 
+                'details': '', 
+                'subitems': [
+                    {'label': 'Longhaul', 'value': longhaul_count},
+                    {'label': 'GPON_FMC', 'value': gpon_fmc_count}
+                ]
+            },
+            {
+                'title': 'Total Cable Used', 
+                'value': f'{total_cable_used:.2f} m', 
+                'details': 'Total Meters of Cable Deployed'
+            },
+            {
+                'title': 'Total Joints', 
+                'value': total_joints, 
+                'details': 'Number of Joints Used'
+            },
+            {
+                'title': 'Total Pipe Used', 
+                'value': f'{total_pipe_used:.2f} m', 
+                'details': 'Total Meters of Pipe Deployed'
+            },
+            {
+                'title': 'Entries by Cable Type', 
+                'value': cable_type_entries, 
+                'subitems': [
+                    {'label': k, 'value': v} for k, v in cable_type_counts.items()
+                ]
+            },
+            {
+                'title': 'Entries by Pipe Size', 
+                'value': pipe_size_entries, 
+                'subitems': [
+                    {'label': f'{k:.2f} in', 'value': v} for k, v in pipe_size_counts.items()
+                ]
+            }
         ]
 
         # Write summary boxes
@@ -1268,12 +1309,17 @@ def export_fmc():
                     label_cell.value = f"{subitem['label']}: {subitem['value']}"
                     label_cell.alignment = left_align
                     label_cell.border = border
+                    summary_ws.merge_cells(start_row=row_start + 2 + i, start_column=col_start, end_row=row_start + 2 + i, end_column=col_start + box_width - 1)
+                    for col in range(col_start, col_start + box_width):
+                        summary_ws.cell(row=row_start + 2 + i, column=col).border = border
             else:
                 details_cell = summary_ws.cell(row=row_start + 2, column=col_start)
                 details_cell.value = box.get('details', '')
                 details_cell.alignment = left_align
                 details_cell.border = border
                 summary_ws.merge_cells(start_row=row_start + 2, start_column=col_start, end_row=row_start + 2, end_column=col_start + box_width - 1)
+                for col in range(col_start, col_start + box_width):
+                    summary_ws.cell(row=row_start + 2, column=col).border = border
 
             # Apply borders to entire box
             for row in range(row_start, row_start + box_height):
@@ -1281,120 +1327,115 @@ def export_fmc():
                     cell = summary_ws.cell(row=row, column=col)
                     cell.border = border
 
-            if (idx + 1) % boxes_per_row == 0:
-                current_row += box_height + box_spacing
+        # Update current_row for next set of boxes
+        current_row = 2 + ((len(boxes) - 1) // boxes_per_row + 1) * (box_height + box_spacing)
 
-                # Add charts to Summary sheet
-        chart_row_start = current_row + box_height + 4
-        chart_width = 15
-        chart_height = 10
-        chart_spacing = 4
+        # Add charts to Summary sheet only if data exists
+        if data and chart_data:
+            # Chart positions to prevent overlap
+            chart_positions = ['A50', 'J50', 'A85', 'J85', 'A120']
+            chart_width = 15
+            chart_height = 10
 
-        # Helper function to calculate next anchor row
-        def get_next_chart_row(prev_row, data_len, spacing=chart_spacing):
-            return prev_row + data_len + spacing
+            # Chart 1: NOC ID by Category
+            if 'noc_by_category' in chart_data:
+                chart1 = BarChart()
+                chart1.title = "NOC ID by Category"
+                chart1.style = 10
+                chart1.height = chart_height
+                chart1.width = chart_width
+                chart1_data = [['Category', 'Count']] + list(zip(chart_data['noc_by_category']['labels'], chart_data['noc_by_category']['values']))
+                for row_num, row_data in enumerate(chart1_data, start=1):
+                    for col_num, value in enumerate(row_data, 1):
+                        summary_ws.cell(row=row_num + 200, column=col_num).value = value
+                data_ref = Reference(summary_ws, min_col=2, min_row=201, max_row=200 + len(chart1_data), max_col=2)
+                cats_ref = Reference(summary_ws, min_col=1, min_row=202, max_row=200 + len(chart1_data))
+                chart1.add_data(data_ref, titles_from_data=True)
+                chart1.set_categories(cats_ref)
+                chart1.y_axis.title = "Count"
+                chart1.x_axis.title = "Category"
+                chart1.y_axis.majorGridlines = ChartLines()
+                summary_ws.add_chart(chart1, "A50")
 
-        row_cursor = chart_row_start
+            # Chart 2: NOC ID by Domain
+            if 'noc_by_domain' in chart_data:
+                chart2 = BarChart()
+                chart2.title = "NOC ID by Domain"
+                chart2.style = 10
+                chart2.height = chart_height
+                chart2.width = chart_width
+                chart2_data = [['Domain', 'Count']] + list(zip(chart_data['noc_by_domain']['labels'], chart_data['noc_by_domain']['values']))
+                for row_num, row_data in enumerate(chart2_data, start=1):
+                    for col_num, value in enumerate(row_data, 4):
+                        summary_ws.cell(row=row_num + 200, column=col_num).value = value
+                data_ref2 = Reference(summary_ws, min_col=5, min_row=201, max_row=200 + len(chart2_data), max_col=5)
+                cats_ref2 = Reference(summary_ws, min_col=4, min_row=202, max_row=200 + len(chart2_data))
+                chart2.add_data(data_ref2, titles_from_data=True)
+                chart2.set_categories(cats_ref2)
+                chart2.y_axis.title = "Count"
+                chart2.x_axis.title = "Domain"
+                chart2.y_axis.majorGridlines = ChartLines()
+                summary_ws.add_chart(chart2, "J50")
 
-        # Chart 1: NOC ID by Category
-        chart1 = BarChart()
-        chart1.title = "NOC ID by Category"
-        chart1.style = 10
-        chart1.height = chart_height
-        chart1.width = chart_width
-        chart1_data = [['Category', 'Count']] + list(zip(chart_data['noc_by_category']['labels'], chart_data['noc_by_category']['values']))
-        for row_num, row_data in enumerate(chart1_data, row_cursor):
-            for col_num, value in enumerate(row_data, 1):
-                summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart1_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart1_data) - 1)
-        chart1.add_data(data_ref, titles_from_data=True)
-        chart1.set_categories(cats_ref)
-        chart1.y_axis.title = "Count"
-        chart1.x_axis.title = "Category"
-        chart1.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart1, f"A{row_cursor}")
-        row_cursor = get_next_chart_row(row_cursor, len(chart1_data))
+            # Chart 3: NOC ID Count by Month (2025)
+            if 'noc_by_month' in chart_data:
+                chart3 = BarChart()
+                chart3.title = "NOC ID Count by Month (2025)"
+                chart3.style = 10
+                chart3.height = chart_height
+                chart3.width = chart_width
+                chart3_data = [['Month', 'Count']] + list(zip(chart_data['noc_by_month']['labels'], chart_data['noc_by_month']['values']))
+                for row_num, row_data in enumerate(chart3_data, start=1):
+                    for col_num, value in enumerate(row_data, 7):
+                        summary_ws.cell(row=row_num + 200, column=col_num).value = value
+                data_ref3 = Reference(summary_ws, min_col=8, min_row=201, max_row=200 + len(chart3_data), max_col=8)
+                cats_ref3 = Reference(summary_ws, min_col=7, min_row=202, max_row=200 + len(chart3_data))
+                chart3.add_data(data_ref3, titles_from_data=True)
+                chart3.set_categories(cats_ref3)
+                chart3.y_axis.title = "Count"
+                chart3.x_axis.title = "Month"
+                chart3.y_axis.majorGridlines = ChartLines()
+                summary_ws.add_chart(chart3, "A85")
 
-        # Chart 2: NOC ID by Domain
-        chart2 = BarChart()
-        chart2.title = "NOC ID by Domain"
-        chart2.style = 10
-        chart2.height = chart_height
-        chart2.width = chart_width
-        chart2_data = [['Domain', 'Count']] + list(zip(chart_data['noc_by_domain']['labels'], chart_data['noc_by_domain']['values']))
-        for row_num, row_data in enumerate(chart2_data, row_cursor):
-            for col_num, value in enumerate(row_data, 1):
-                summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart2_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart2_data) - 1)
-        chart2.add_data(data_ref, titles_from_data=True)
-        chart2.set_categories(cats_ref)
-        chart2.y_axis.title = "Count"
-        chart2.x_axis.title = "Domain"
-        chart2.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart2, f"A{row_cursor}")
-        row_cursor = get_next_chart_row(row_cursor, len(chart2_data))
+            # Chart 4: NOC ID Count by Year
+            if 'noc_by_year' in chart_data:
+                chart4 = BarChart()
+                chart4.title = "NOC ID Count by Year"
+                chart4.style = 10
+                chart4.height = chart_height
+                chart4.width = chart_width
+                chart4_data = [['Year', 'Count']] + list(zip(chart_data['noc_by_year']['labels'], chart_data['noc_by_year']['values']))
+                for row_num, row_data in enumerate(chart4_data, start=1):
+                    for col_num, value in enumerate(row_data, 10):
+                        summary_ws.cell(row=row_num + 200, column=col_num).value = value
+                data_ref4 = Reference(summary_ws, min_col=11, min_row=201, max_row=200 + len(chart4_data), max_col=11)
+                cats_ref4 = Reference(summary_ws, min_col=10, min_row=202, max_row=200 + len(chart4_data))
+                chart4.add_data(data_ref4, titles_from_data=True)
+                chart4.set_categories(cats_ref4)
+                chart4.y_axis.title = "Count"
+                chart4.x_axis.title = "Year"
+                chart4.y_axis.majorGridlines = ChartLines()
+                summary_ws.add_chart(chart4, "J85")
 
-        # Chart 3: NOC ID Count by Month (2025)
-        chart3 = BarChart()
-        chart3.title = "NOC ID Count by Month (2025)"
-        chart3.style = 10
-        chart3.height = chart_height
-        chart3.width = chart_width
-        chart3_data = [['Month', 'Count']] + list(zip(chart_data['noc_by_month']['labels'], chart_data['noc_by_month']['values']))
-        for row_num, row_data in enumerate(chart3_data, row_cursor):
-            for col_num, value in enumerate(row_data, 1):
-                summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart3_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart3_data) - 1)
-        chart3.add_data(data_ref, titles_from_data=True)
-        chart3.set_categories(cats_ref)
-        chart3.y_axis.title = "Count"
-        chart3.x_axis.title = "Month"
-        chart3.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart3, f"A{row_cursor}")
-        row_cursor = get_next_chart_row(row_cursor, len(chart3_data))
-
-        # Chart 4: NOC ID Count by Year
-        chart4 = BarChart()
-        chart4.title = "NOC ID Count by Year"
-        chart4.style = 10
-        chart4.height = chart_height
-        chart4.width = chart_width
-        chart4_data = [['Year', 'Count']] + list(zip(chart_data['noc_by_year']['labels'], chart_data['noc_by_year']['values']))
-        for row_num, row_data in enumerate(chart4_data, row_cursor):
-            for col_num, value in enumerate(row_data, 1):
-                summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart4_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart4_data) - 1)
-        chart4.add_data(data_ref, titles_from_data=True)
-        chart4.set_categories(cats_ref)
-        chart4.y_axis.title = "Count"
-        chart4.x_axis.title = "Year"
-        chart4.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart4, f"A{row_cursor}")
-        row_cursor = get_next_chart_row(row_cursor, len(chart4_data))
-
-        # Chart 5: Cable Capacity Distribution
-        chart5 = BarChart()
-        chart5.title = "Cable Capacity Distribution"
-        chart5.style = 10
-        chart5.height = chart_height
-        chart5.width = chart_width
-        chart5_data = [['Cable Capacity', 'Meters']] + list(zip(chart_data['cable_capacity']['labels'], chart_data['cable_capacity']['values']))
-        for row_num, row_data in enumerate(chart5_data, row_cursor):
-            for col_num, value in enumerate(row_data, 1):
-                summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart5_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart5_data) - 1)
-        chart5.add_data(data_ref, titles_from_data=True)
-        chart5.set_categories(cats_ref)
-        chart5.y_axis.title = "Meters"
-        chart5.x_axis.title = "Cable Capacity"
-        chart5.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart5, f"A{row_cursor}")
-        row_cursor = get_next_chart_row(row_cursor, len(chart5_data))
+            # Chart 5: Cable Capacity Distribution
+            if 'cable_capacity' in chart_data:
+                chart5 = BarChart()
+                chart5.title = "Cable Capacity Distribution"
+                chart5.style = 10
+                chart5.height = chart_height
+                chart5.width = chart_width
+                chart5_data = [['Cable Capacity', 'Meters']] + list(zip(chart_data['cable_capacity']['labels'], chart_data['cable_capacity']['values']))
+                for row_num, row_data in enumerate(chart5_data, start=1):
+                    for col_num, value in enumerate(row_data, 13):
+                        summary_ws.cell(row=row_num + 200, column=col_num).value = value
+                data_ref5 = Reference(summary_ws, min_col=14, min_row=201, max_row=200 + len(chart5_data), max_col=14)
+                cats_ref5 = Reference(summary_ws, min_col=13, min_row=202, max_row=200 + len(chart5_data))
+                chart5.add_data(data_ref5, titles_from_data=True)
+                chart5.set_categories(cats_ref5)
+                chart5.y_axis.title = "Meters"
+                chart5.x_axis.title = "Cable Capacity"
+                chart5.y_axis.majorGridlines = ChartLines()
+                summary_ws.add_chart(chart5, "A120")
 
         # Save workbook
         output = BytesIO()
@@ -1423,6 +1464,7 @@ def export_fmc():
 
         logger.info(f"Export successful for user {session.get('username')}, Year={year or 'All'}, Month={month or 'All'}")
         return response
+        
     except Exception as e:
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
