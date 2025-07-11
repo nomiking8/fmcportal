@@ -1333,7 +1333,6 @@ def export_fmc():
         # Add charts to Summary sheet only if data exists
         if data and chart_data:
             # Chart positions to prevent overlap
-            chart_positions = ['B15', 'J15', 'B34', 'J34', 'I49']
             chart_width = 15
             chart_height = 10
 
@@ -1355,7 +1354,7 @@ def export_fmc():
                 chart1.y_axis.title = "Count"
                 chart1.x_axis.title = "Category"
                 chart1.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart1, "A50")
+                summary_ws.add_chart(chart1, "B15")
 
             # Chart 2: NOC ID by Domain
             if 'noc_by_domain' in chart_data:
@@ -1375,7 +1374,7 @@ def export_fmc():
                 chart2.y_axis.title = "Count"
                 chart2.x_axis.title = "Domain"
                 chart2.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart2, "J50")
+                summary_ws.add_chart(chart2, "J15")
 
             # Chart 3: NOC ID Count by Month (2025)
             if 'noc_by_month' in chart_data:
@@ -1395,7 +1394,7 @@ def export_fmc():
                 chart3.y_axis.title = "Count"
                 chart3.x_axis.title = "Month"
                 chart3.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart3, "A85")
+                summary_ws.add_chart(chart3, "B34")
 
             # Chart 4: NOC ID Count by Year
             if 'noc_by_year' in chart_data:
@@ -1415,7 +1414,7 @@ def export_fmc():
                 chart4.y_axis.title = "Count"
                 chart4.x_axis.title = "Year"
                 chart4.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart4, "J85")
+                summary_ws.add_chart(chart4, "J34")
 
             # Chart 5: Cable Capacity Distribution
             if 'cable_capacity' in chart_data:
@@ -1435,7 +1434,7 @@ def export_fmc():
                 chart5.y_axis.title = "Meters"
                 chart5.x_axis.title = "Cable Capacity"
                 chart5.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart5, "A120")
+                summary_ws.add_chart(chart5, "I49")
 
         # Save workbook
         output = BytesIO()
