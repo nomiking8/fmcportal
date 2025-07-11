@@ -1354,7 +1354,7 @@ def export_fmc():
                 chart1.y_axis.title = "Count"
                 chart1.x_axis.title = "Category"
                 chart1.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart1, "B15")
+                summary_ws.add_chart(chart1, "A15")
 
             # Chart 2: NOC ID by Domain
             if 'noc_by_domain' in chart_data:
@@ -1394,7 +1394,7 @@ def export_fmc():
                 chart3.y_axis.title = "Count"
                 chart3.x_axis.title = "Month"
                 chart3.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart3, "B34")
+                summary_ws.add_chart(chart3, "A36")
 
             # Chart 4: NOC ID Count by Year
             if 'noc_by_year' in chart_data:
@@ -1414,7 +1414,7 @@ def export_fmc():
                 chart4.y_axis.title = "Count"
                 chart4.x_axis.title = "Year"
                 chart4.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart4, "J34")
+                summary_ws.add_chart(chart4, "J36")
 
             # Chart 5: Cable Capacity Distribution
             if 'cable_capacity' in chart_data:
@@ -1434,7 +1434,7 @@ def export_fmc():
                 chart5.y_axis.title = "Meters"
                 chart5.x_axis.title = "Cable Capacity"
                 chart5.y_axis.majorGridlines = ChartLines()
-                summary_ws.add_chart(chart5, "I49")
+                summary_ws.add_chart(chart5, "H55")
 
         # Save workbook
         output = BytesIO()
