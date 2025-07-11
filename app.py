@@ -1134,26 +1134,15 @@ def export_fmc():
         summary_df = pd.DataFrame(summary_records)
 
         # Create Excel file
-        output = BytesIO()
         wb = Workbook()
         summary_sheet = wb.active
         summary_sheet.title = 'Summary'
         data_sheet = wb.create_sheet('FMC Data')
 
-        # Write Data sheet
-        for r_idx, row in enumerate(pd.DataFrame(data_records).to_dict('records'), 1):
-            for c_idx, value in enumerate(row.values(), 1):
-                data_sheet.cell(row=r_idx+1, column=c_idx).value = value
-        for c_idx, column in enumerate(data_df.columns, 1):
-            data_sheet.cell(row=1, column=c_idx).value = column
-            data_sheet.cell(row=1, column=c_idx).font = Font(bold=True)
-            data_sheet.cell(row=1, column=c_idx).alignment = Alignment(horizontal='center')
-            data_sheet.cell(row=1, column=c_idx).fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
-
         # Write Summary sheet with box-like styling
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
         header_fill = PatternFill(start_color='ADD8E6', end_color='ADD8E6', fill_type='solid')
-        for r_idx, row in enumerate(summary_records, 1):
+        for r_idx, row in enumerate(summary_df.to_dict('records'), 1):
             for c_idx, value in enumerate(row.values(), 1):
                 cell = summary_sheet.cell(row=r_idx+1, column=c_idx)
                 cell.value = value
@@ -1165,7 +1154,7 @@ def export_fmc():
                 elif row['Metric'] in ['Longhaul', 'GPON_FMC'] or row['Details'] == '':
                     cell.fill = PatternFill(start_color='F5F5F5', end_color='F5F5F5', fill_type='solid')
 
-        # Adjust column widths
+        # Adjust Summary sheet column widths
         for col in summary_sheet.columns:
             max_length = 0
             column = col[0].column_letter
@@ -1176,6 +1165,33 @@ def export_fmc():
                     pass
             adjusted_width = max_length + 2
             summary_sheet.column_dimensions[column].width = adjusted_width
+
+        # Write Data sheet with enhanced styling
+        for r_idx, row in enumerate(data_df.to_dict('records'), 1):
+            for c_idx, value in enumerate(row.values(), 1):
+                cell = data_sheet.cell(row=r_idx+1, column=c_idx)
+                cell.value = value
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+        for c_idx, column in enumerate(data_df.columns, 1):
+            cell = data_sheet.cell(row=1, column=c_idx)
+            cell.value = column
+            cell.font = Font(bold=True)
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # Adjust Data sheet column widths
+        for col in data_sheet.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = max_length + 2
+            data_sheet.column_dimensions[column].width = adjusted_width
 
         # Add charts to Summary sheet
         if chart_data['noc_by_category']:
@@ -1207,10 +1223,6 @@ def export_fmc():
         if chart_data['noc_by_domain']:
             # Bar Chart: NOC ID by Domain
             domain_start_row = len(cable_type_counts) + len(pipe_size_counts) + 8
-            bar_chart_domain = BarChart()
-            bar_chart_domain.title = "NOC ID by Domain"
-            bar_chart_domain.x_axis.title = "Domain"
-            bar_chart_domain.y_axis.title = "Count"
             domain_data = [(dom, count) for dom, count in chart_data['noc_by_domain']]
             for idx, (dom, count) in enumerate(domain_data, domain_start_row):
                 summary_sheet.cell(row=idx, column=1).value = dom
@@ -1219,6 +1231,10 @@ def export_fmc():
                 summary_sheet.cell(row=idx, column=2).border = border
                 summary_sheet.cell(row=idx, column=1).alignment = Alignment(horizontal='center')
                 summary_sheet.cell(row=idx, column=2).alignment = Alignment(horizontal='center')
+            bar_chart_domain = BarChart()
+            bar_chart_domain.title = "NOC ID by Domain"
+            bar_chart_domain.x_axis.title = "Domain"
+            bar_chart_domain.y_axis.title = "Count"
             categories = Reference(summary_sheet, min_col=1, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
             values = Reference(summary_sheet, min_col=2, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
             series = Series(values, title="NOC ID Count")
@@ -1252,10 +1268,8 @@ def export_fmc():
             summary_sheet.add_chart(bar_chart_month, "K15")
 
         # Save Excel file
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            writer.book = wb
-            summary_df.to_excel(writer, index=False, sheet_name='Summary')
-            data_df.to_excel(writer, index=False, sheet_name='FMC Data')
+        output = BytesIO()
+        wb.save(output)
         output.seek(0)
 
         # Create response with file
