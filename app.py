@@ -1284,11 +1284,17 @@ def export_fmc():
             if (idx + 1) % boxes_per_row == 0:
                 current_row += box_height + box_spacing
 
-        # Add charts to Summary sheet
+                # Add charts to Summary sheet
         chart_row_start = current_row + box_height + 4
         chart_width = 15
         chart_height = 10
-        chart_spacing = 2
+        chart_spacing = 4
+
+        # Helper function to calculate next anchor row
+        def get_next_chart_row(prev_row, data_len, spacing=chart_spacing):
+            return prev_row + data_len + spacing
+
+        row_cursor = chart_row_start
 
         # Chart 1: NOC ID by Category
         chart1 = BarChart()
@@ -1296,18 +1302,19 @@ def export_fmc():
         chart1.style = 10
         chart1.height = chart_height
         chart1.width = chart_width
-        chart1_data = [['Category', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_category']['labels'], chart_data['noc_by_category']['values'])]
-        for row_num, row_data in enumerate(chart1_data, chart_row_start):
+        chart1_data = [['Category', 'Count']] + list(zip(chart_data['noc_by_category']['labels'], chart_data['noc_by_category']['values']))
+        for row_num, row_data in enumerate(chart1_data, row_cursor):
             for col_num, value in enumerate(row_data, 1):
                 summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=chart_row_start, max_row=chart_row_start + len(chart1_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart1_data) - 1)
+        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart1_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart1_data) - 1)
         chart1.add_data(data_ref, titles_from_data=True)
         chart1.set_categories(cats_ref)
         chart1.y_axis.title = "Count"
         chart1.x_axis.title = "Category"
         chart1.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart1, f"A{chart_row_start + len(chart1_data) + 2}")
+        summary_ws.add_chart(chart1, f"A{row_cursor}")
+        row_cursor = get_next_chart_row(row_cursor, len(chart1_data))
 
         # Chart 2: NOC ID by Domain
         chart2 = BarChart()
@@ -1315,18 +1322,19 @@ def export_fmc():
         chart2.style = 10
         chart2.height = chart_height
         chart2.width = chart_width
-        chart2_data = [['Domain', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_domain']['labels'], chart_data['noc_by_domain']['values'])]
-        for row_num, row_data in enumerate(chart2_data, chart_row_start):
-            for col_num, value in enumerate(row_data, chart_width + chart_spacing + 1):
+        chart2_data = [['Domain', 'Count']] + list(zip(chart_data['noc_by_domain']['labels'], chart_data['noc_by_domain']['values']))
+        for row_num, row_data in enumerate(chart2_data, row_cursor):
+            for col_num, value in enumerate(row_data, 1):
                 summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 2, min_row=chart_row_start, max_row=chart_row_start + len(chart2_data) - 1, max_col=chart_width + chart_spacing + 2)
-        cats_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart2_data) - 1)
+        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart2_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart2_data) - 1)
         chart2.add_data(data_ref, titles_from_data=True)
         chart2.set_categories(cats_ref)
         chart2.y_axis.title = "Count"
         chart2.x_axis.title = "Domain"
         chart2.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart2, f"{chr(65 + chart_width + chart_spacing)}{chart_row_start + len(chart2_data) + 2}")
+        summary_ws.add_chart(chart2, f"A{row_cursor}")
+        row_cursor = get_next_chart_row(row_cursor, len(chart2_data))
 
         # Chart 3: NOC ID Count by Month (2025)
         chart3 = BarChart()
@@ -1334,18 +1342,19 @@ def export_fmc():
         chart3.style = 10
         chart3.height = chart_height
         chart3.width = chart_width
-        chart3_data = [['Month', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_month']['labels'], chart_data['noc_by_month']['values'])]
-        for row_num, row_data in enumerate(chart3_data, chart_row_start):
-            for col_num, value in enumerate(row_data, (chart_width + chart_spacing) * 2 + 1):
+        chart3_data = [['Month', 'Count']] + list(zip(chart_data['noc_by_month']['labels'], chart_data['noc_by_month']['values']))
+        for row_num, row_data in enumerate(chart3_data, row_cursor):
+            for col_num, value in enumerate(row_data, 1):
                 summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=(chart_width + chart_spacing) * 2 + 2, min_row=chart_row_start, max_row=chart_row_start + len(chart3_data) - 1, max_col=(chart_width + chart_spacing) * 2 + 2)
-        cats_ref = Reference(summary_ws, min_col=(chart_width + chart_spacing) * 2 + 1, min_row=chart_row_start + 1, max_row=chart_row_start + len(chart3_data) - 1)
+        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart3_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart3_data) - 1)
         chart3.add_data(data_ref, titles_from_data=True)
         chart3.set_categories(cats_ref)
         chart3.y_axis.title = "Count"
         chart3.x_axis.title = "Month"
         chart3.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart3, f"{chr(65 + (chart_width + chart_spacing) * 2)}{chart_row_start + len(chart3_data) + 2}")
+        summary_ws.add_chart(chart3, f"A{row_cursor}")
+        row_cursor = get_next_chart_row(row_cursor, len(chart3_data))
 
         # Chart 4: NOC ID Count by Year
         chart4 = BarChart()
@@ -1353,19 +1362,19 @@ def export_fmc():
         chart4.style = 10
         chart4.height = chart_height
         chart4.width = chart_width
-        chart4_data = [['Year', 'Count']] + [[label, value] for label, value in zip(chart_data['noc_by_year']['labels'], chart_data['noc_by_year']['values'])]
-        next_row_start = chart_row_start + len(chart3_data) + chart_height + 4
-        for row_num, row_data in enumerate(chart4_data, next_row_start):
+        chart4_data = [['Year', 'Count']] + list(zip(chart_data['noc_by_year']['labels'], chart_data['noc_by_year']['values']))
+        for row_num, row_data in enumerate(chart4_data, row_cursor):
             for col_num, value in enumerate(row_data, 1):
                 summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=2, min_row=next_row_start, max_row=next_row_start + len(chart4_data) - 1, max_col=2)
-        cats_ref = Reference(summary_ws, min_col=1, min_row=next_row_start + 1, max_row=next_row_start + len(chart4_data) - 1)
+        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart4_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart4_data) - 1)
         chart4.add_data(data_ref, titles_from_data=True)
         chart4.set_categories(cats_ref)
         chart4.y_axis.title = "Count"
         chart4.x_axis.title = "Year"
         chart4.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart4, f"A{next_row_start + len(chart4_data) + 2}")
+        summary_ws.add_chart(chart4, f"A{row_cursor}")
+        row_cursor = get_next_chart_row(row_cursor, len(chart4_data))
 
         # Chart 5: Cable Capacity Distribution
         chart5 = BarChart()
@@ -1373,18 +1382,19 @@ def export_fmc():
         chart5.style = 10
         chart5.height = chart_height
         chart5.width = chart_width
-        chart5_data = [['Cable Capacity', 'Meters']] + [[label, value] for label, value in zip(chart_data['cable_capacity']['labels'], chart_data['cable_capacity']['values'])]
-        for row_num, row_data in enumerate(chart5_data, next_row_start):
-            for col_num, value in enumerate(row_data, chart_width + chart_spacing + 1):
+        chart5_data = [['Cable Capacity', 'Meters']] + list(zip(chart_data['cable_capacity']['labels'], chart_data['cable_capacity']['values']))
+        for row_num, row_data in enumerate(chart5_data, row_cursor):
+            for col_num, value in enumerate(row_data, 1):
                 summary_ws.cell(row=row_num, column=col_num).value = value
-        data_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 2, min_row=next_row_start, max_row=next_row_start + len(chart5_data) - 1, max_col=chart_width + chart_spacing + 2)
-        cats_ref = Reference(summary_ws, min_col=chart_width + chart_spacing + 1, min_row=next_row_start + 1, max_row=next_row_start + len(chart5_data) - 1)
+        data_ref = Reference(summary_ws, min_col=2, min_row=row_cursor, max_row=row_cursor + len(chart5_data) - 1, max_col=2)
+        cats_ref = Reference(summary_ws, min_col=1, min_row=row_cursor + 1, max_row=row_cursor + len(chart5_data) - 1)
         chart5.add_data(data_ref, titles_from_data=True)
         chart5.set_categories(cats_ref)
         chart5.y_axis.title = "Meters"
         chart5.x_axis.title = "Cable Capacity"
         chart5.y_axis.majorGridlines = ChartLines()
-        summary_ws.add_chart(chart5, f"{chr(65 + chart_width + chart_spacing)}{next_row_start + len(chart5_data) + 2}")
+        summary_ws.add_chart(chart5, f"A{row_cursor}")
+        row_cursor = get_next_chart_row(row_cursor, len(chart5_data))
 
         # Save workbook
         output = BytesIO()
