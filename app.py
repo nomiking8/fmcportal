@@ -994,6 +994,7 @@ def get_fmc_details(id):
 @login_required
 def export_fmc():
     try:
+        from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
         search = request.args.get('search', '').strip()
         year = request.args.get('year', '').strip()
         month = request.args.get('month', '').strip()
@@ -1041,50 +1042,38 @@ def export_fmc():
                 'Updated At': updated_at_pkt.strftime('%-m/%-d/%Y, %-I:%M:%S %p')
             })
 
-        # Prepare Summary sheet (mimicking dashboard)
+        # Prepare Summary sheet records
         summary_records = []
         if data:
-            # Total NOC IDs
             total_noc_ids = len(data)
             longhaul_count = sum(1 for fmc in data if fmc.category == 'Longhaul')
             gpon_fmc_count = sum(1 for fmc in data if fmc.category == 'GPON_FMC')
-
-            # Total Cable Used
             total_cable_used = sum(fmc.cable_used_meters or 0 for fmc in data)
-
-            # Total Joints
             total_joints = sum(fmc.no_of_joints or 0 for fmc in data)
-
-            # Total Pipe Used
             pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
             if year and year != 'All':
                 pipe_query = pipe_query.filter(db.extract('year', FMCInformation.created_at) == int(year))
             if month and month != 'All':
                 pipe_query = pipe_query.filter(db.func.to_char(FMCInformation.created_at, 'MM') == month.zfill(2))
             total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
-
-            # Cable Type Counts
             cable_type_counts = Counter(fmc.cable_type for fmc in data if fmc.cable_type)
             cable_type_entries = sum(cable_type_counts.values())
-
-            # Pipe Size Counts
             pipe_sizes = [pi.pipe_size_inches for pi in pipe_query.all() if pi.pipe_size_inches is not None]
             pipe_size_counts = Counter(pipe_sizes)
             pipe_size_entries = sum(pipe_size_counts.values())
 
-            # Build summary rows
             summary_records.append({'Metric': 'Total NOC IDs', 'Value': total_noc_ids, 'Details': ''})
-            summary_records.append({'Metric': 'Longhaul', 'Value': longhaul_count, 'Details': ''})
-            summary_records.append({'Metric': 'GPON_FMC', 'Value': gpon_fmc_count, 'Details': ''})
+            summary_records.append({'Metric': '  Longhaul', 'Value': longhaul_count, 'Details': ''})
+            summary_records.append({'Metric': '  GPON_FMC', 'Value': gpon_fmc_count, 'Details': ''})
             summary_records.append({'Metric': 'Total Cable Used', 'Value': f'{total_cable_used:.2f} m', 'Details': 'Total Meters of Cable Deployed'})
             summary_records.append({'Metric': 'Total Joints', 'Value': total_joints, 'Details': 'Number of Joints Used'})
             summary_records.append({'Metric': 'Total Pipe Used', 'Value': f'{total_pipe_used:.2f} m', 'Details': 'Total Meters of Pipe Deployed'})
             summary_records.append({'Metric': 'Entries by Cable Type', 'Value': cable_type_entries, 'Details': ''})
             for cable_type, count in cable_type_counts.items():
-                summary_records.append({'Metric': cable_type, 'Value': count, 'Details': ''})
+                summary_records.append({'Metric': f'  {cable_type}', 'Value': count, 'Details': ''})
             summary_records.append({'Metric': 'Entries by Pipe Size', 'Value': pipe_size_entries, 'Details': ''})
             for pipe_size, count in pipe_size_counts.items():
-                summary_records.append({'Metric': f'{pipe_size:.2f} in', 'Value': count, 'Details': ''})
+                summary_records.append({'Metric': f'  {pipe_size:.2f} in', 'Value': count, 'Details': ''})
 
         # Create DataFrames
         data_df = pd.DataFrame(data_records)
@@ -1095,6 +1084,47 @@ def export_fmc():
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             summary_df.to_excel(writer, index=False, sheet_name='Summary')
             data_df.to_excel(writer, index=False, sheet_name='FMC Data')
+
+            # Access the openpyxl workbook and worksheet
+            workbook = writer.book
+            summary_sheet = workbook['Summary']
+
+            # Define styles
+            header_font = Font(bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='4B0082', end_color='4B0082', fill_type='solid')
+            cell_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+            center_alignment = Alignment(horizontal='center', vertical='center')
+            left_alignment = Alignment(horizontal='left', vertical='center')
+
+            # Style headers
+            for cell in summary_sheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.border = cell_border
+                cell.alignment = center_alignment
+
+            # Style data rows
+            for row in summary_sheet.iter_rows(min_row=2, max_row=summary_sheet.max_row, min_col=1, max_col=3):
+                for cell in row:
+                    cell.border = cell_border
+                    cell.alignment = left_alignment if cell.column == 1 else center_alignment
+                    # Indent subcategories (Longhaul, GPON_FMC, cable types, pipe sizes)
+                    if cell.column == 1 and cell.value and cell.value.startswith('  '):
+                        cell.alignment = Alignment(horizontal='left', vertical='center', indent=2)
+
+            # Adjust column widths
+            for col in summary_sheet.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = max_length + 2
+                summary_sheet.column_dimensions[column].width = adjusted_width
+
         output.seek(0)
 
         # Create response with file
