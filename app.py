@@ -17,6 +17,7 @@ import pandas as pd
 from io import BytesIO
 import pytz
 from collections import Counter
+from openpyxl.chart.label import DataLabelList
 import json
 
 # Load environment variables
@@ -1351,6 +1352,8 @@ def export_fmc():
                 cats_ref = Reference(summary_ws, min_col=1, min_row=202, max_row=200 + len(chart1_data))
                 chart1.add_data(data_ref, titles_from_data=True)
                 chart1.set_categories(cats_ref)
+                chart1.dataLabels = DataLabelList()
+                chart1.dataLabels.showVal = True
                 chart1.y_axis.title = "Count"
                 chart1.x_axis.title = "Category"
                 chart1.y_axis.majorGridlines = ChartLines()
@@ -1371,6 +1374,8 @@ def export_fmc():
                 cats_ref2 = Reference(summary_ws, min_col=4, min_row=202, max_row=200 + len(chart2_data))
                 chart2.add_data(data_ref2, titles_from_data=True)
                 chart2.set_categories(cats_ref2)
+                chart2.dataLabels = DataLabelList()
+                chart2.dataLabels.showVal = True
                 chart2.y_axis.title = "Count"
                 chart2.x_axis.title = "Domain"
                 chart2.y_axis.majorGridlines = ChartLines()
@@ -1391,6 +1396,8 @@ def export_fmc():
                 cats_ref3 = Reference(summary_ws, min_col=7, min_row=202, max_row=200 + len(chart3_data))
                 chart3.add_data(data_ref3, titles_from_data=True)
                 chart3.set_categories(cats_ref3)
+                chart3.dataLabels = DataLabelList()
+                chart3.dataLabels.showVal = True
                 chart3.y_axis.title = "Count"
                 chart3.x_axis.title = "Month"
                 chart3.y_axis.majorGridlines = ChartLines()
@@ -1411,6 +1418,8 @@ def export_fmc():
                 cats_ref4 = Reference(summary_ws, min_col=10, min_row=202, max_row=200 + len(chart4_data))
                 chart4.add_data(data_ref4, titles_from_data=True)
                 chart4.set_categories(cats_ref4)
+                chart4.dataLabels = DataLabelList()
+                chart4.dataLabels.showVal = True
                 chart4.y_axis.title = "Count"
                 chart4.x_axis.title = "Year"
                 chart4.y_axis.majorGridlines = ChartLines()
@@ -1431,6 +1440,8 @@ def export_fmc():
                 cats_ref5 = Reference(summary_ws, min_col=13, min_row=202, max_row=200 + len(chart5_data))
                 chart5.add_data(data_ref5, titles_from_data=True)
                 chart5.set_categories(cats_ref5)
+                chart5.dataLabels = DataLabelList()
+                chart5.dataLabels.showVal = True
                 chart5.y_axis.title = "Meters"
                 chart5.x_axis.title = "Cable Capacity"
                 chart5.y_axis.majorGridlines = ChartLines()
