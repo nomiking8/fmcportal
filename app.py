@@ -828,11 +828,22 @@ def view_fmc():
             fmc.created_at_formatted = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%-m/%-d/%Y, %-I:%M:%S %p')
             fmc.updated_at_formatted = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%-m/%-d/%Y, %-I:%M:%S %p')
 
+        # ✅ Extract distinct years from created_at column
+        years = (
+            FMCInformation.query
+            .with_entities(db.extract('year', FMCInformation.created_at).label('year'))
+            .distinct()
+            .order_by('year')
+            .all()
+        )
+        years = [int(year.year) for year in years]
+
         return render_template(
             'view_fmc.html',
             fmcs=pagination,
             search=search,
-            user_role=session.get('role')
+            user_role=session.get('role'),
+            years=years
         )
     except Exception as e:
         logger.error(f"Error in view_fmc route: {str(e)}")
