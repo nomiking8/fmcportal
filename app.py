@@ -1192,13 +1192,15 @@ def export_fmc():
             adjusted_width = max_length + 2
             data_sheet.column_dimensions[column].width = adjusted_width
 
-        # Add charts to Summary sheet with adjusted positions to avoid overlap
+        # Add charts to Summary sheet with proper spacing
         if chart_data['noc_by_category']:
             # Bar Chart: NOC ID by Category
             bar_chart = BarChart()
             bar_chart.title = "NOC ID by Category"
             bar_chart.x_axis.title = "Category"
             bar_chart.y_axis.title = "Count"
+            bar_chart.height = 8  # Adjust chart height
+            bar_chart.width = 12  # Adjust chart width
             categories = Reference(summary_sheet, min_col=1, min_row=2, max_row=3)
             values = Reference(summary_sheet, min_col=2, min_row=2, max_row=3)
             series = Series(values, title="NOC ID Count")
@@ -1206,22 +1208,20 @@ def export_fmc():
             bar_chart.set_categories(categories)
             bar_chart.dataLabels = DataLabelList()
             bar_chart.dataLabels.showVal = True
-            bar_chart.height = 8  # Adjust chart size
-            bar_chart.width = 12
-            summary_sheet.add_chart(bar_chart, "E2")
+            summary_sheet.add_chart(bar_chart, "E2")  # Position at top-right
 
-            # Pie Chart: NOC ID by Category Distribution
+            # Pie Chart: NOC ID by Category
             pie_chart = PieChart()
             pie_chart.title = "NOC ID by Category Distribution"
+            pie_chart.height = 8
+            pie_chart.width = 12
             pie_data = Reference(summary_sheet, min_col=2, min_row=2, max_row=3)
             pie_categories = Reference(summary_sheet, min_col=1, min_row=2, max_row=3)
             pie_chart.add_data(pie_data, titles_from_data=False)
             pie_chart.set_categories(pie_categories)
             pie_chart.dataLabels = DataLabelList()
             pie_chart.dataLabels.showPercent = True
-            pie_chart.height = 8
-            pie_chart.width = 12
-            summary_sheet.add_chart(pie_chart, "E15")  # Moved down to avoid overlap
+            summary_sheet.add_chart(pie_chart, "E12")  # Below bar chart with 10-row gap
 
         if chart_data['noc_by_domain']:
             # Bar Chart: NOC ID by Domain
@@ -1238,6 +1238,8 @@ def export_fmc():
             bar_chart_domain.title = "NOC ID by Domain"
             bar_chart_domain.x_axis.title = "Domain"
             bar_chart_domain.y_axis.title = "Count"
+            bar_chart_domain.height = 8
+            bar_chart_domain.width = 12
             categories = Reference(summary_sheet, min_col=1, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
             values = Reference(summary_sheet, min_col=2, min_row=domain_start_row, max_row=domain_start_row+len(domain_data)-1)
             series = Series(values, title="NOC ID Count")
@@ -1245,9 +1247,7 @@ def export_fmc():
             bar_chart_domain.set_categories(categories)
             bar_chart_domain.dataLabels = DataLabelList()
             bar_chart_domain.dataLabels.showVal = True
-            bar_chart_domain.height = 8
-            bar_chart_domain.width = 12
-            summary_sheet.add_chart(bar_chart_domain, "K28")  # Moved further down to avoid overlap
+            summary_sheet.add_chart(bar_chart_domain, "S2")  # Right side, top
 
         if chart_data['month_counts']:
             # Bar Chart: NOC ID Count by Month (2025)
@@ -1263,6 +1263,8 @@ def export_fmc():
             bar_chart_month.title = "NOC ID Count by Month (2025)"
             bar_chart_month.x_axis.title = "Month"
             bar_chart_month.y_axis.title = "Count"
+            bar_chart_month.height = 8
+            bar_chart_month.width = 12
             categories = Reference(summary_sheet, min_col=1, min_row=month_start_row, max_row=month_start_row+11)
             values = Reference(summary_sheet, min_col=2, min_row=month_start_row, max_row=month_start_row+11)
             series = Series(values, title="NOC ID Count")
@@ -1270,9 +1272,7 @@ def export_fmc():
             bar_chart_month.set_categories(categories)
             bar_chart_month.dataLabels = DataLabelList()
             bar_chart_month.dataLabels.showVal = True
-            bar_chart_month.height = 8
-            bar_chart_month.width = 12
-            summary_sheet.add_chart(bar_chart_month, "K45")  # Moved further down to avoid overlap
+            summary_sheet.add_chart(bar_chart_month, "S22")  # Right side, below domain chart with 20-row gap
 
         # Save Excel file
         output = BytesIO()
