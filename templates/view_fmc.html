@@ -20,12 +20,53 @@
                    class="w-full pl-10 p-3 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 text-white placeholder-gray-300 border-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 shadow-md hover:shadow-lg"
                    value="{{ search }}" onkeyup="searchTable()">
         </div>
-        <a href="{{ url_for('export_fmc', search=search) }}" class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 shadow-md transition duration-200 flex items-center gap-2">
+        <button onclick="showExportModal()" class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 shadow-md transition duration-200 flex items-center gap-2">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2M5 3h14a2 2 0 012 2v7H3V5a2 2 0 012-2z"></path>
             </svg>
             Export to Excel
-        </a>
+        </button>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl transform transition-all duration-300">
+            <h2 class="text-xl font-bold mb-4 text-teal-800 border-b pb-2">Export FMC Data</h2>
+            <form id="exportForm" action="{{ url_for('export_fmc') }}" method="GET">
+                <input type="hidden" name="search" value="{{ search }}">
+                <div class="mb-4">
+                    <label for="year" class="block text-sm font-medium text-gray-700">Year</label>
+                    <select id="year" name="year" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="All">All</option>
+                        {% for year in years %}
+                        <option value="{{ year }}">{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="month" class="block text-sm font-medium text-gray-700">Month</label>
+                    <select id="month" name="month" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="All">All</option>
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeExportModal()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-200">Cancel</button>
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">Export</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="bg-white shadow-xl rounded-lg overflow-x-auto">
@@ -123,7 +164,7 @@
     </div>
 </div>
 
-<!-- JavaScript for Search and Modal -->
+<!-- JavaScript for Search, Details, and Export Modal -->
 <script>
 function searchTable() {
     let input = document.getElementById("searchInput").value.toLowerCase();
@@ -143,7 +184,6 @@ function showDetails(id) {
     fetch(`/api/fmc/${id}`)
         .then(response => response.json())
         .then(data => {
-            // Use formatted timestamps from server
             let content = `
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                     <p><strong>Category:</strong> ${data.category || '-'}</p>
@@ -180,6 +220,14 @@ function showDetails(id) {
 
 function closeModal() {
     document.getElementById('detailsModal').classList.add('hidden');
+}
+
+function showExportModal() {
+    document.getElementById('exportModal').classList.remove('hidden');
+}
+
+function closeExportModal() {
+    document.getElementById('exportModal').classList.add('hidden');
 }
 </script>
 {% endblock %}

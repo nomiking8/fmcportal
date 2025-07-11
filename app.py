@@ -977,32 +977,41 @@ def get_fmc_details(id):
         logger.error(f"Error in get_fmc_details: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# ... (other imports and configurations remain unchanged)
+
 @app.route('/export_fmc', methods=['GET'])
 @login_required
 def export_fmc():
     try:
         search = request.args.get('search', '').strip()
+        year = request.args.get('year', '').strip()
+        month = request.args.get('month', '').strip()
         query = FMCInformation.query
         query = apply_data_filter(query)
 
         if search:
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
+        if year and year != 'All':
+            query = query.filter(db.extract('year', FMCInformation.created_at) == int(year))
+        if month and month != 'All':
+            query = query.filter(db.func.to_char(FMCInformation.created_at, 'MM') == month.zfill(2))
+
         data = query.order_by(FMCInformation.created_at.desc()).all()
         pkt_tz = pytz.timezone('Asia/Karachi')
-        records = []
+        
+        # Prepare Data sheet records
+        data_records = []
         for fmc in data:
             created_at_pkt = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
             updated_at_pkt = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz)
-            
             joint_types_str = ', '.join(jt.joint_type for jt in fmc.joint_types) if fmc.joint_types else '-'
-            
             pipe_info = fmc.pipe_info[0] if fmc.pipe_info else None
             pipe_used_meters = f'{pipe_info.pipe_used_meters:.2f}' if pipe_info and pipe_info.pipe_used_meters else '-'
             pipe_size_inches = f'{pipe_info.pipe_size_inches:.2f}' if pipe_info and pipe_info.pipe_size_inches else '-'
             pipe_type = pipe_info.pipe_type if pipe_info and pipe_info.pipe_type else '-'
 
-            records.append({
+            data_records.append({
                 'ID': fmc.id,
                 'Category': fmc.category,
                 'Domain': fmc.domain,
@@ -1021,10 +1030,98 @@ def export_fmc():
                 'Updated At': updated_at_pkt.strftime('%-m/%-d/%Y, %-I:%M:%S %p')
             })
 
-        df = pd.DataFrame(records)
+        # Prepare Summary sheet
+        summary_records = []
+        if data:
+            # Group by Year, Month, Domain
+            grouped_data = (
+                query.join(PipeInformation, isouter=True)
+                .with_entities(
+                    db.extract('year', FMCInformation.created_at).label('year'),
+                    db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                    FMCInformation.domain,
+                    db.func.count(FMCInformation.cable_cut_noc_id).label('total_noc_ids'),
+                    db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0).label('total_cable_used'),
+                    FMCInformation.cable_type,
+                    FMCInformation.cable_capacity,
+                    db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0).label('total_joints'),
+                    db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0).label('total_pipe_used'),
+                    PipeInformation.pipe_size_inches,
+                    PipeInformation.pipe_type
+                )
+                .group_by(
+                    db.extract('year', FMCInformation.created_at),
+                    db.func.to_char(FMCInformation.created_at, 'MM'),
+                    FMCInformation.domain,
+                    FMCInformation.cable_type,
+                    FMCInformation.cable_capacity,
+                    PipeInformation.pipe_size_inches,
+                    PipeInformation.pipe_type
+                )
+                .order_by('year', 'month', FMCInformation.domain)
+                .all()
+            )
+
+            # Aggregate joint types
+            joint_types_data = (
+                query.join(JointType, isouter=True)
+                .with_entities(
+                    db.extract('year', FMCInformation.created_at).label('year'),
+                    db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
+                    FMCInformation.domain,
+                    JointType.joint_type
+                )
+                .group_by(
+                    db.extract('year', FMCInformation.created_at),
+                    db.func.to_char(FMCInformation.created_at, 'MM'),
+                    FMCInformation.domain,
+                    JointType.joint_type
+                )
+                .all()
+            )
+
+            # Create a dictionary to store joint types per year, month, domain
+            joint_types_dict = {}
+            for jt in joint_types_data:
+                key = (jt.year, jt.month, jt.domain)
+                if key not in joint_types_dict:
+                    joint_types_dict[key] = []
+                if jt.joint_type:
+                    joint_types_dict[key].append(jt.joint_type)
+
+            month_names = {
+                '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+                '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+            }
+
+            for row in grouped_data:
+                year, month, domain = row.year, row.month, row.domain
+                key = (year, month, domain)
+                joint_types_str = ', '.join(set(joint_types_dict.get(key, []))) if key in joint_types_dict else '-'
+                summary_records.append({
+                    'Year': int(year),
+                    'Month': month_names.get(month, month),
+                    'Domain': domain,
+                    'Total NOC IDs': row.total_noc_ids,
+                    'Total Cable Used (m)': f'{row.total_cable_used:.2f}' if row.total_cable_used else '-',
+                    'Cable Type': row.cable_type or '-',
+                    'Cable Capacity': row.cable_capacity or '-',
+                    'No. of Joints': row.total_joints if row.total_joints else '-',
+                    'Joint Types': joint_types_str,
+                    'Total Pipe Used (m)': f'{row.total_pipe_used:.2f}' if row.total_pipe_used else '-',
+                    'Pipe Size (in)': f'{row.pipe_size_inches:.2f}' if row.pipe_size_inches else '-',
+                    'Pipe Type': row.pipe_type or '-'
+                })
+
+        # Create DataFrames
+        data_df = pd.DataFrame(data_records)
+        summary_df = pd.DataFrame(summary_records)
+
+        # Create Excel file with two sheets
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='FMC Data')
+            summary_df.to_excel(writer, index=False, sheet_name='Summary')
+            data_df.to_excel(writer, index=False, sheet_name='FMC Data')
         output.seek(0)
 
         # Create response with file
@@ -1032,10 +1129,10 @@ def export_fmc():
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name='fmc_data.xlsx'
+            download_name=f'fmc_data_{year or "All"}_{month or "All"}.xlsx'
         ))
-        
-        # Ensure auth_token is preserved in the response
+
+        # Preserve auth_token
         auth_token = request.cookies.get('auth_token')
         if auth_token:
             response.set_cookie(
@@ -1046,13 +1143,15 @@ def export_fmc():
                 samesite='Lax',
                 max_age=int(timedelta(hours=24).total_seconds())
             )
-        
-        logger.info(f"Export successful for user {session.get('username')}")
+
+        logger.info(f"Export successful for user {session.get('username')}, Year={year or 'All'}, Month={month or 'All'}")
         return response
     except Exception as e:
         logger.error(f"Error in export_fmc: {str(e)}")
         flash(f"Error exporting data: {str(e)}")
         return redirect(url_for('view_fmc'))
+
+# ... (rest of the app.py remains unchanged)
 
 # Add before_request hook
 @app.before_request
