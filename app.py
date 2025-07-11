@@ -1010,7 +1010,7 @@ def export_fmc():
 
         data = query.order_by(FMCInformation.created_at.desc()).all()
         pkt_tz = pytz.timezone('Asia/Karachi')
-        
+
         # Prepare Data sheet records
         data_records = []
         for fmc in data:
@@ -1041,88 +1041,50 @@ def export_fmc():
                 'Updated At': updated_at_pkt.strftime('%-m/%-d/%Y, %-I:%M:%S %p')
             })
 
-        # Prepare Summary sheet
+        # Prepare Summary sheet (mimicking dashboard)
         summary_records = []
         if data:
-            # Group by Year, Month, Domain
-            grouped_data = (
-                query.join(PipeInformation, isouter=True)
-                .with_entities(
-                    db.extract('year', FMCInformation.created_at).label('year'),
-                    db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
-                    FMCInformation.domain,
-                    db.func.count(FMCInformation.cable_cut_noc_id).label('total_noc_ids'),
-                    db.func.coalesce(db.func.sum(FMCInformation.cable_used_meters), 0).label('total_cable_used'),
-                    FMCInformation.cable_type,
-                    FMCInformation.cable_capacity,
-                    db.func.coalesce(db.func.sum(FMCInformation.no_of_joints), 0).label('total_joints'),
-                    db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0).label('total_pipe_used'),
-                    PipeInformation.pipe_size_inches,
-                    PipeInformation.pipe_type
-                )
-                .group_by(
-                    db.extract('year', FMCInformation.created_at),
-                    db.func.to_char(FMCInformation.created_at, 'MM'),
-                    FMCInformation.domain,
-                    FMCInformation.cable_type,
-                    FMCInformation.cable_capacity,
-                    PipeInformation.pipe_size_inches,
-                    PipeInformation.pipe_type
-                )
-                .order_by('year', 'month', FMCInformation.domain)
-                .all()
-            )
+            # Total NOC IDs
+            total_noc_ids = len(data)
+            longhaul_count = sum(1 for fmc in data if fmc.category == 'Longhaul')
+            gpon_fmc_count = sum(1 for fmc in data if fmc.category == 'GPON_FMC')
 
-            # Aggregate joint types
-            joint_types_data = (
-                query.join(JointType, isouter=True)
-                .with_entities(
-                    db.extract('year', FMCInformation.created_at).label('year'),
-                    db.func.to_char(FMCInformation.created_at, 'MM').label('month'),
-                    FMCInformation.domain,
-                    JointType.joint_type
-                )
-                .group_by(
-                    db.extract('year', FMCInformation.created_at),
-                    db.func.to_char(FMCInformation.created_at, 'MM'),
-                    FMCInformation.domain,
-                    JointType.joint_type
-                )
-                .all()
-            )
+            # Total Cable Used
+            total_cable_used = sum(fmc.cable_used_meters or 0 for fmc in data)
 
-            # Create a dictionary to store joint types per year, month, domain
-            joint_types_dict = {}
-            for jt in joint_types_data:
-                key = (jt.year, jt.month, jt.domain)
-                if key not in joint_types_dict:
-                    joint_types_dict[key] = []
-                if jt.joint_type:
-                    joint_types_dict[key].append(jt.joint_type)
+            # Total Joints
+            total_joints = sum(fmc.no_of_joints or 0 for fmc in data)
 
-            month_names = {
-                '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
-                '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
-            }
+            # Total Pipe Used
+            pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
+            if year and year != 'All':
+                pipe_query = pipe_query.filter(db.extract('year', FMCInformation.created_at) == int(year))
+            if month and month != 'All':
+                pipe_query = pipe_query.filter(db.func.to_char(FMCInformation.created_at, 'MM') == month.zfill(2))
+            total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
-            for row in grouped_data:
-                year, month, domain = row.year, row.month, row.domain
-                key = (year, month, domain)
-                joint_types_str = ', '.join(set(joint_types_dict.get(key, []))) if key in joint_types_dict else '-'
-                summary_records.append({
-                    'Year': int(year),
-                    'Month': month_names.get(month, month),
-                    'Domain': domain,
-                    'Total NOC IDs': row.total_noc_ids,
-                    'Total Cable Used (m)': f'{row.total_cable_used:.2f}' if row.total_cable_used else '-',
-                    'Cable Type': row.cable_type or '-',
-                    'Cable Capacity': row.cable_capacity or '-',
-                    'No. of Joints': row.total_joints if row.total_joints else '-',
-                    'Joint Types': joint_types_str,
-                    'Total Pipe Used (m)': f'{row.total_pipe_used:.2f}' if row.total_pipe_used else '-',
-                    'Pipe Size (in)': f'{row.pipe_size_inches:.2f}' if row.pipe_size_inches else '-',
-                    'Pipe Type': row.pipe_type or '-'
-                })
+            # Cable Type Counts
+            cable_type_counts = Counter(fmc.cable_type for fmc in data if fmc.cable_type)
+            cable_type_entries = sum(cable_type_counts.values())
+
+            # Pipe Size Counts
+            pipe_sizes = [pi.pipe_size_inches for pi in pipe_query.all() if pi.pipe_size_inches is not None]
+            pipe_size_counts = Counter(pipe_sizes)
+            pipe_size_entries = sum(pipe_size_counts.values())
+
+            # Build summary rows
+            summary_records.append({'Metric': 'Total NOC IDs', 'Value': total_noc_ids, 'Details': ''})
+            summary_records.append({'Metric': 'Longhaul', 'Value': longhaul_count, 'Details': ''})
+            summary_records.append({'Metric': 'GPON_FMC', 'Value': gpon_fmc_count, 'Details': ''})
+            summary_records.append({'Metric': 'Total Cable Used', 'Value': f'{total_cable_used:.2f} m', 'Details': 'Total Meters of Cable Deployed'})
+            summary_records.append({'Metric': 'Total Joints', 'Value': total_joints, 'Details': 'Number of Joints Used'})
+            summary_records.append({'Metric': 'Total Pipe Used', 'Value': f'{total_pipe_used:.2f} m', 'Details': 'Total Meters of Pipe Deployed'})
+            summary_records.append({'Metric': 'Entries by Cable Type', 'Value': cable_type_entries, 'Details': ''})
+            for cable_type, count in cable_type_counts.items():
+                summary_records.append({'Metric': cable_type, 'Value': count, 'Details': ''})
+            summary_records.append({'Metric': 'Entries by Pipe Size', 'Value': pipe_size_entries, 'Details': ''})
+            for pipe_size, count in pipe_size_counts.items():
+                summary_records.append({'Metric': f'{pipe_size:.2f} in', 'Value': count, 'Details': ''})
 
         # Create DataFrames
         data_df = pd.DataFrame(data_records)
