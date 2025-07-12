@@ -1354,6 +1354,9 @@ def export_fmc():
                 chart1.set_categories(cats_ref)
                 chart1.dataLabels = DataLabelList()
                 chart1.dataLabels.showVal = True
+                chart1.dataLabels.showCatName = False
+                chart1.dataLabels.showSerName = False
+                chart1.dataLabels.showLegendKey = False
                 chart1.y_axis.title = "Count"
                 chart1.x_axis.title = "Category"
                 chart1.y_axis.majorGridlines = ChartLines()
@@ -1376,6 +1379,9 @@ def export_fmc():
                 chart2.set_categories(cats_ref2)
                 chart2.dataLabels = DataLabelList()
                 chart2.dataLabels.showVal = True
+                chart2.dataLabels.showCatName = False
+                chart2.dataLabels.showSerName = False
+                chart2.dataLabels.showLegendKey = False
                 chart2.y_axis.title = "Count"
                 chart2.x_axis.title = "Domain"
                 chart2.y_axis.majorGridlines = ChartLines()
@@ -1398,6 +1404,9 @@ def export_fmc():
                 chart3.set_categories(cats_ref3)
                 chart3.dataLabels = DataLabelList()
                 chart3.dataLabels.showVal = True
+                chart3.dataLabels.showCatName = False
+                chart3.dataLabels.showSerName = False
+                chart3.dataLabels.showLegendKey = False
                 chart3.y_axis.title = "Count"
                 chart3.x_axis.title = "Month"
                 chart3.y_axis.majorGridlines = ChartLines()
@@ -1420,6 +1429,9 @@ def export_fmc():
                 chart4.set_categories(cats_ref4)
                 chart4.dataLabels = DataLabelList()
                 chart4.dataLabels.showVal = True
+                chart4.dataLabels.showCatName = False
+                chart4.dataLabels.showSerName = False
+                chart4.dataLabels.showLegendKey = False
                 chart4.y_axis.title = "Count"
                 chart4.x_axis.title = "Year"
                 chart4.y_axis.majorGridlines = ChartLines()
@@ -1442,6 +1454,9 @@ def export_fmc():
                 chart5.set_categories(cats_ref5)
                 chart5.dataLabels = DataLabelList()
                 chart5.dataLabels.showVal = True
+                chart5.dataLabels.showCatName = False
+                chart5.dataLabels.showSerName = False
+                chart5.dataLabels.showLegendKey = False
                 chart5.y_axis.title = "Meters"
                 chart5.x_axis.title = "Cable Capacity"
                 chart5.y_axis.majorGridlines = ChartLines()
