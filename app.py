@@ -964,6 +964,11 @@ def delete(id):
 def get_fmc_details(id):
     try:
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
+        pkt_tz = pytz.timezone('Asia/Karachi')
+
+        created_at_formatted = fmc.created_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%d-%m-%Y, %I:%M %p') if fmc.created_at else "-"
+        updated_at_formatted = fmc.updated_at.replace(tzinfo=pytz.UTC).astimezone(pkt_tz).strftime('%d-%m-%Y, %I:%M %p') if fmc.updated_at else "-"
+
         return jsonify({
             'id': fmc.id,
             'category': fmc.category,
@@ -974,9 +979,9 @@ def get_fmc_details(id):
             'cable_capacity': fmc.cable_capacity,
             'no_of_joints': fmc.no_of_joints,
             'created_by': fmc.created_by,
-            'created_at': fmc.created_at.isoformat(),
             'updated_by': fmc.updated_by,
-            'updated_at': fmc.updated_at.isoformat(),
+            'created_at_formatted': created_at_formatted,
+            'updated_at_formatted': updated_at_formatted,
             'joint_types': [{'id': jt.id, 'joint_type': jt.joint_type} for jt in fmc.joint_types],
             'pipe_info': [{
                 'id': pi.id,
