@@ -163,7 +163,7 @@
                 {{ session.get('username', 'User')|first|upper }}
             </div>
             <div class="text-base text-white font-semibold">{{ session.get('username', 'User') }}</div>
-            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', 'Unknown') }} - {{ session.get('domain', 'Unknown') }}</div>
+            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', [])|join(', ') }} - {{ session.get('domain', [])|join(', ') }}</div>
         </div>
         <nav class="flex-1 flex flex-col gap-2">
             <a href="{{ url_for('index') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('index') else '' }}">
@@ -210,7 +210,7 @@
                 {{ session.get('username', 'User')|first|upper }}
             </div>
             <div class="text-base text-white font-semibold">{{ session.get('username', 'User') }}</div>
-            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', 'Unknown') }} - {{ session.get('domain', 'Unknown') }}</div>
+            <div class="text-xs text-teal-100">{{ session.get('region', 'Unknown') }} - {{ session.get('category', [])|join(', ') }} - {{ session.get('domain', [])|join(', ') }}</div>
         </div>
         <nav class="flex-1 flex flex-col gap-2">
             <a href="{{ url_for('index') }}" class="sidebar-pill flex items-center px-4 py-2 rounded-full {{ 'active' if request.path == url_for('index') else '' }}">

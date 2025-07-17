@@ -75,23 +75,19 @@ def login_required(f):
         auth_token = request.cookies.get('auth_token')
         if auth_token:
             try:
-                # Verify the token with Supabase
                 response = supabase.auth.get_user(auth_token)
                 if response.user:
-                    # Fetch user info from users_info table
                     user_data = supabase_service.table('users_info').select('user_id', 'username', 'region', 'category', 'domain', 'role').eq('user_id', response.user.id).execute()
                     if user_data.data:
-                        # Set session data
                         session['user_id'] = user_data.data[0]['user_id']
                         session['username'] = user_data.data[0]['username']
                         session['region'] = user_data.data[0]['region']
-                        session['category'] = user_data.data[0]['category']
-                        session['domain'] = user_data.data[0]['domain']
+                        session['category'] = user_data.data[0]['category']  # Now a list
+                        session['domain'] = user_data.data[0]['domain']      # Now a list
                         session['role'] = user_data.data[0]['role']
                         return f(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Token validation failed: {str(e)}")
-                # Clear invalid token
                 resp = make_response(redirect(url_for('login')))
                 resp.set_cookie('auth_token', '', expires=0)
                 session.clear()
@@ -109,6 +105,14 @@ def master_required(f):
     def decorated_function(*args, **kwargs):
         if session.get('role') != 'master':
             flash('Access restricted to master users')
+            return redirect(url_for('index'))
+        # For master users, ensure they have access to all categories and domains
+        all_categories = set(VALID_CATEGORIES)
+        all_domains = set(sum(VALID_DOMAINS.values(), []))
+        user_categories = set(session.get('category', []))
+        user_domains = set(session.get('domain', []))
+        if not (all_categories.issubset(user_categories) and all_domains.issubset(user_domains)):
+            flash('Master users must have access to all categories and domains')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -134,39 +138,50 @@ def validate_email(email):
 
 def apply_data_filter(query):
     user_role = session.get('role')
-    user_category = session.get('category')
-    user_domain = session.get('domain')
+    user_categories = session.get('category', [])
+    user_domains = session.get('domain', [])
 
-    logger.debug(f"Applying filter: role={user_role}, category={user_category}, domain={user_domain}")
+    logger.debug(f"Applying filter: role={user_role}, categories={user_categories}, domains={user_domains}")
 
-    if not all([user_role, user_category, user_domain]):
+    if not all([user_role, user_categories, user_domains]):
         logger.error("Missing session data for filtering")
         raise ValueError("User session data incomplete")
 
     if user_role == 'master':
-        if user_category == 'All' and user_domain == 'All':
-            logger.debug("No filter applied (master, All, All)")
+        if set(VALID_CATEGORIES).issubset(set(user_categories)) and set(sum(VALID_DOMAINS.values(), [])).issubset(set(user_domains)):
+            logger.debug("No filter applied (master with all categories and domains)")
             return query
-        elif user_category in VALID_CATEGORIES and user_domain == 'All':
-            domains = VALID_DOMAINS.get(user_category, [])
-            if not domains:
-                logger.error(f"No valid domains for category: {user_category}")
-                raise ValueError(f"Invalid category: {user_category}")
-            logger.debug(f"Filtering by category={user_category}, domains={domains}")
-            return query.filter(FMCInformation.category == user_category, FMCInformation.domain.in_(domains))
         else:
-            if user_category not in VALID_CATEGORIES or user_domain not in VALID_DOMAINS.get(user_category, []):
-                logger.error(f"Invalid category/domain: {user_category}/{user_domain}")
-                raise ValueError("Invalid category or domain")
-            logger.debug(f"Filtering by category={user_category}, domain={user_domain}")
-            return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
+            # Filter by user's assigned categories and domains
+            valid_domains = []
+            for cat in user_categories:
+                if cat in VALID_CATEGORIES:
+                    valid_domains.extend(VALID_DOMAINS.get(cat, []))
+            valid_domains = [d for d in valid_domains if d in user_domains]
+            if not valid_domains:
+                logger.error(f"No valid domains for categories: {user_categories}")
+                raise ValueError("Invalid categories or domains")
+            logger.debug(f"Filtering by categories={user_categories}, domains={valid_domains}")
+            return query.filter(
+                FMCInformation.category.in_(user_categories),
+                FMCInformation.domain.in_(valid_domains)
+            )
     else:
-        if user_category not in VALID_CATEGORIES or user_domain not in VALID_DOMAINS.get(user_category, []):
-            logger.error(f"Invalid category/domain for user: {user_category}/{user_domain}")
-            raise ValueError("Invalid category or domain for user")
-        logger.debug(f"Non-master: Filtering by category={user_category}, domain={user_domain}")
-        return query.filter(FMCInformation.category == user_category, FMCInformation.domain == user_domain)
-
+        # Non-master users: filter by their assigned categories and domains
+        valid_domains = []
+        for cat in user_categories:
+            if cat in VALID_CATEGORIES:
+                valid_domains.extend(VALID_DOMAINS.get(cat, []))
+        valid_domains = [d for d in valid_domains if d in user_domains]
+        if not valid_domains:
+            logger.error(f"No valid domains for user categories: {user_categories}")
+            raise ValueError("Invalid categories or domains for user")
+        logger.debug(f"Non-master: Filtering by categories={user_categories}, domains={valid_domains}")
+        return query.filter(
+            FMCInformation.category.in_(user_categories),
+            FMCInformation.domain.in_(valid_domains)
+        )
+    
 # Database Models
 class FMCInformation(db.Model):
     __tablename__ = 'fmc_information'
@@ -216,11 +231,11 @@ def signup():
         email = request.form.get('email', '').lower().strip()
         password = request.form.get('password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
-        category = request.form.get('category', '').strip()
-        domain = request.form.get('domain', '').strip()
+        categories = request.form.getlist('category[]')  # Multiple categories
+        domains = request.form.getlist('domain[]')       # Multiple domains
         role = request.form.get('role', 'user').strip()
 
-        if not all([username, email, password, confirm_password, category, domain]):
+        if not all([username, email, password, confirm_password, categories, domains]):
             flash('All fields are required')
             return render_template('signup.html')
 
@@ -236,13 +251,24 @@ def signup():
             flash('Invalid role')
             return render_template('signup.html')
 
-        if role == 'master':
-            if category not in VALID_CATEGORIES + ['All'] or (category != 'All' and domain != 'All'):
-                flash('Master users must select "All" or a valid category with domain "All"')
+        # Validate categories and domains
+        for cat in categories:
+            if cat not in VALID_CATEGORIES:
+                flash(f'Invalid category: {cat}')
                 return render_template('signup.html')
-        else:
-            if category not in VALID_CATEGORIES or domain not in VALID_DOMAINS.get(category, []):
-                flash('Invalid category or domain')
+        valid_domains = []
+        for cat in categories:
+            valid_domains.extend(VALID_DOMAINS.get(cat, []))
+        for dom in domains:
+            if dom not in valid_domains:
+                flash(f'Invalid domain for selected categories: {dom}')
+                return render_template('signup.html')
+
+        if role == 'master':
+            all_categories = set(VALID_CATEGORIES)
+            all_domains = set(sum(VALID_DOMAINS.values(), []))
+            if not (set(categories) == all_categories and set(domains) == all_domains):
+                flash('Master users must have access to all categories and domains')
                 return render_template('signup.html')
 
         try:
@@ -265,8 +291,8 @@ def signup():
                 "options": {
                     "data": {
                         "username": username,
-                        "category": category,
-                        "domain": domain,
+                        "category": categories,  # Store as array
+                        "domain": domains,       # Store as array
                         "region": "RTR",
                         "role": role
                     }
@@ -279,8 +305,8 @@ def signup():
                     'username': username,
                     'email': email,
                     'region': 'RTR',
-                    'category': category,
-                    'domain': domain,
+                    'category': categories,
+                    'domain': domains,
                     'role': role
                 }).execute()
                 flash('Signup successful! Please check your email to verify your account.')
@@ -312,8 +338,8 @@ def login():
 
             user_id = user_data.data[0]['user_id']
             region = user_data.data[0]['region']
-            category = user_data.data[0]['category']
-            domain = user_data.data[0]['domain']
+            categories = user_data.data[0]['category']  # Now a list
+            domains = user_data.data[0]['domain']      # Now a list
             role = user_data.data[0]['role']
 
             auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
@@ -334,8 +360,8 @@ def login():
                 session['region'] = region
                 session['username'] = username
                 session['user_id'] = user_id
-                session['category'] = category
-                session['domain'] = domain
+                session['category'] = categories
+                session['domain'] = domains
                 session['role'] = role
                 resp = make_response(redirect(url_for('index')))
                 resp.set_cookie(
@@ -455,11 +481,11 @@ def logout():
 def index():
     try:
         user_role = session.get('role')
-        user_category = session.get('category')
-        user_domain = session.get('domain')
+        user_categories = session.get('category', [])
+        user_domains = session.get('domain', [])
         username = session.get('username')
 
-        logger.debug(f"User: {username}, Role: {user_role}, Category: {user_category}, Domain: {user_domain}")
+        logger.debug(f"User: {username}, Role: {user_role}, Categories: {user_categories}, Domains: {user_domains}")
 
         # Base query for FMC entries
         base_query = FMCInformation.query
@@ -689,25 +715,21 @@ def index():
             cable_type_month_data=cable_type_month_data,
             pipe_sizes=[str(size) for size in pipe_sizes],
             pipe_size_month_data=pipe_size_month_data,
-
-            # New for NOC by cat/domain
             noc_by_category=noc_by_category_dict,
             noc_category_year_labels=noc_category_year_labels,
             noc_category_year_cats=noc_category_year_cats,
             noc_category_year_data=noc_category_year_data,
             noc_category_month_cats=noc_category_month_cats,
             noc_category_month_data=noc_category_month_data,
-
             noc_by_domain=noc_by_domain_dict,
             noc_domain_year_labels=noc_domain_year_labels,
             noc_domain_year_doms=noc_domain_year_doms,
             noc_domain_year_data=noc_domain_year_data,
             noc_domain_month_doms=noc_domain_month_doms,
             noc_domain_month_data=noc_domain_month_data,
-
             user_role=user_role,
-            user_category=user_category,
-            user_domain=user_domain
+            user_categories=user_categories,
+            user_domains=user_domains
         )
     except Exception as e:
         logger.error(f"Error in index route: {str(e)}")
@@ -719,11 +741,11 @@ def index():
 def add():
     try:
         user_role = session.get('role')
-        user_category = session.get('category')
-        user_domain = session.get('domain')
+        user_categories = session.get('category', [])
+        user_domains = session.get('domain', [])
         username = session.get('username', 'unknown_user')
 
-        logger.debug(f"Add route: User={username}, Role={user_role}, Category={user_category}, Domain={user_domain}")
+        logger.debug(f"Add route: User={username}, Role={user_role}, Categories={user_categories}, Domains={user_domains}")
 
         if request.method == 'POST':
             category = request.form.get('category')
@@ -735,9 +757,9 @@ def add():
             no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
 
             if user_role != 'master':
-                if category != user_category or domain != user_domain:
+                if category not in user_categories or domain not in user_domains:
                     logger.error(f"Non-master user {username} attempted to add data for category={category}, domain={domain}")
-                    raise ValueError("You can only add data for your assigned category and domain")
+                    raise ValueError("You can only add data for your assigned categories and domains")
             else:
                 if category not in VALID_CATEGORIES:
                     logger.error(f"Invalid category selected by master user: {category}")
@@ -800,13 +822,13 @@ def add():
             return redirect(url_for('view_fmc'))
         else:
             logger.debug("Rendering add.html for GET request")
-            return render_template('add.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
+            return render_template('add.html', user_role=user_role, user_categories=user_categories, user_domains=user_domains)
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in add route: {str(e)}")
         flash(f"Error adding data: {str(e)}", 'error')
-        return render_template('add.html', user_role=user_role, user_category=user_category, user_domain=user_domain)
-
+        return render_template('add.html', user_role=user_role, user_categories=user_categories, user_domains=user_domains)
+    
 @app.route('/view_fmc', methods=['GET'])
 @login_required
 def view_fmc():
@@ -855,16 +877,11 @@ def view_fmc():
 @master_required
 def edit(id):
     try:
-        user_category = session.get('category')
+        user_categories = session.get('category', [])
         username = session.get('username', 'unknown_user')
-        logger.debug(f"Edit route: User={username}, Editing ID={id}, User Category={user_category}")
+        logger.debug(f"Edit route: User={username}, Editing ID={id}, User Categories={user_categories}")
 
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
-
-        if user_category != 'All' and fmc.category != user_category:
-            logger.error(f"Master user {username} attempted to edit entry ID={id} outside their category: {fmc.category}")
-            flash('You can only edit entries within your assigned category')
-            return redirect(url_for('view_fmc'))
 
         if request.method == 'POST':
             category = request.form.get('category')
@@ -885,7 +902,7 @@ def edit(id):
             fmc.cable_capacity = request.form.get('cable_capacity') or None
             fmc.no_of_joints = safe_int(request.form.get('no_of_joints'), 'no_of_joints') if request.form.get('no_of_joints') else None
             fmc.updated_by = username
-            fmc.updated_at = db.func.now()  # Use database's current timestamp
+            fmc.updated_at = db.func.now()
 
             # Validate joint types
             joint_types = request.form.getlist('joint_type[]')
@@ -901,7 +918,7 @@ def edit(id):
                     joint_type=jt,
                     created_by=fmc.updated_by,
                     updated_by=fmc.updated_by,
-                    updated_at=db.func.now()  # Use database's current timestamp
+                    updated_at=db.func.now()
                 )
                 db.session.add(joint)
 
@@ -918,7 +935,7 @@ def edit(id):
                     pipe_type=pipe_type,
                     created_by=fmc.updated_by,
                     updated_by=fmc.updated_by,
-                    updated_at=db.func.now()  # Use database's current timestamp
+                    updated_at=db.func.now()
                 )
                 db.session.add(pipe)
 
@@ -928,27 +945,22 @@ def edit(id):
         else:
             joint_types = [jt.joint_type for jt in fmc.joint_types]
             pipe_info = fmc.pipe_info[0] if fmc.pipe_info else None
-            return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info)
+            return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info, user_categories=user_categories)
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in edit route: {str(e)}")
         flash(f"Error editing data: {str(e)}", 'error')
-        return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info)
-
+        return render_template('edit.html', fmc=fmc, joint_types=joint_types, pipe_info=pipe_info, user_categories=user_categories)
+    
 @app.route('/delete/<int:id>', methods=['POST'])
 @master_required
 def delete(id):
     try:
-        user_category = session.get('category')
+        user_categories = session.get('category', [])
         username = session.get('username', 'unknown_user')
-        logger.debug(f"Delete route: User={username}, Deleting ID={id}, User Category={user_category}")
+        logger.debug(f"Delete route: User={username}, Deleting ID={id}, User Categories={user_categories}")
 
         fmc = apply_data_filter(FMCInformation.query).filter_by(id=id).first_or_404()
-
-        if user_category != 'All' and fmc.category != user_category:
-            logger.error(f"Master user {username} attempted to delete entry ID={id} outside their category: {fmc.category}")
-            flash('You can only delete entries within your assigned category')
-            return redirect(url_for('view_fmc'))
 
         db.session.delete(fmc)
         db.session.commit()
@@ -1535,8 +1547,8 @@ def api_login():
 
         user_id = user_data.data[0]['user_id']
         region = user_data.data[0]['region']
-        category = user_data.data[0]['category']
-        domain = user_data.data[0]['domain']
+        categories = user_data.data[0]['category']
+        domains = user_data.data[0]['domain']
         role = user_data.data[0]['role']
 
         auth_user = supabase_service.auth.admin.get_user_by_id(user_id)
@@ -1557,8 +1569,8 @@ def api_login():
             session['region'] = region
             session['username'] = username
             session['user_id'] = user_id
-            session['category'] = category
-            session['domain'] = domain
+            session['category'] = categories
+            session['domain'] = domains
             session['role'] = role
             resp = make_response(jsonify({
                 "message": "Login successful",
@@ -1566,8 +1578,8 @@ def api_login():
                 "user": {
                     "username": username,
                     "region": region,
-                    "category": category,
-                    "domain": domain,
+                    "category": categories,
+                    "domain": domains,
                     "role": role
                 }
             }))
