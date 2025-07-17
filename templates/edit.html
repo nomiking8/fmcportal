@@ -1,82 +1,118 @@
 {% extends "base.html" %}
 {% block title %}Edit FMC Data{% endblock %}
 {% block content %}
-    <h1>Edit FMC Data</h1>
-    <form method="POST" action="{{ url_for('edit', id=fmc.id) }}">
-        <div class="form-section">
-            <h2>General Information</h2>
-            <div class="form-group">
-                <label for="region">Region</label>
-                <input type="text" id="region" name="region" value="{{ fmc.region }}" readonly>
-            </div>
-            <div class="form-group">
-                <label for="category">Category</label>
-                <select id="category" name="category" required>
-                    {% for cat in user_categories %}
+<div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-8 text-white text-center bg-gradient-to-r from-indigo-600 to-purple-600 p-4 rounded-lg shadow-lg">Edit FMC Data</h1>
+    <form method="POST" action="{{ url_for('edit', id=fmc.id) }}" class="bg-white shadow-xl rounded-lg p-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <!-- General Information -->
+        <div class="mb-8 bg-teal-50 p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-teal-800 text-center">General Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="region" class="block text-gray-700 mb-2 font-medium">Region</label>
+                    <input type="text" id="region" name="region" value="{{ fmc.region or 'RTR' }}" class="w-full p-3 border rounded-lg bg-gray-100" readonly>
+                </div>
+                <div>
+                    <label for="category" class="block text-gray-700 mb-2 font-medium">Category</label>
+                    {% if user_role == 'master' %}
+                    <select id="category" name="category" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" required>
+                        <option value="" disabled {% if not fmc.category %}selected{% endif %}>Select Category</option>
+                        <option value="Longhaul" {% if fmc.category == 'Longhaul' %}selected{% endif %}>Longhaul</option>
+                        <option value="GPON_FMC" {% if fmc.category == 'GPON_FMC' %}selected{% endif %}>GPON_FMC</option>
+                    </select>
+                    {% else %}
+                    <select id="category" name="category" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" required>
+                        {% for cat in user_categories %}
                         <option value="{{ cat }}" {% if cat == fmc.category %}selected{% endif %}>{{ cat }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="domain">Domain</label>
-                <select id="domain" name="domain" required>
-                    <!-- Populated dynamically via JavaScript -->
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="cable_cut_noc_id">Cable Cut NOC ID</label>
-                <input type="text" id="cable_cut_noc_id" name="cable_cut_noc_id" value="{{ fmc.cable_cut_noc_id or '' }}">
-            </div>
-            <div class="form-group">
-                <label for="cable_used_meters">Cable Used (Meters)</label>
-                <input type="number" step="0.01" id="cable_used_meters" name="cable_used_meters" value="{{ fmc.cable_used_meters or '' }}">
-            </div>
-            <div class="form-group">
-                <label for="cable_type">Cable Type</label>
-                <select id="cable_type" name="cable_type">
-                    <option value="">Select Cable Type</option>
-                    <option value="UG" {% if fmc.cable_type == 'UG' %}selected{% endif %}>UG</option>
-                    <option value="Aerial" {% if fmc.cable_type == 'Aerial' %}selected{% endif %}>Aerial</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="cable_capacity">Cable Capacity</label>
-                <input type="text" id="cable_capacity" name="cable_capacity" value="{{ fmc.cable_capacity or '' }}">
-            </div>
-            <div class="form-group">
-                <label for="no_of_joints">No. of Joints Used</label>
-                <input type="number" id="no_of_joints" name="no_of_joints" value="{{ fmc.no_of_joints or '' }}">
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="domain" class="block text-gray-700 mb-2 font-medium">Domain</label>
+                    <select id="domain" name="domain" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" required>
+                        <option value="" disabled {% if not fmc.domain %}selected{% endif %}>Select Domain</option>
+                        {% if user_role != 'master' %}
+                        {% for dom in user_domains %}
+                        <option value="{{ dom }}" {% if dom == fmc.domain %}selected{% endif %}>{{ dom }}</option>
+                        {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+                <div>
+                    <label for="cable_cut_noc_id" class="block text-gray-700 mb-2 font-medium">Cable Cut NOC ID</label>
+                    <input type="text" id="cable_cut_noc_id" name="cable_cut_noc_id" value="{{ fmc.cable_cut_noc_id or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="Enter NOC ID">
+                </div>
+                <div>
+                    <label for="cable_used_meters" class="block text-gray-700 mb-2 font-medium">Cable Used (Meters)</label>
+                    <input type="number" step="any" id="cable_used_meters" name="cable_used_meters" value="{{ fmc.cable_used_meters or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="Enter meters">
+                </div>
+                <div>
+                    <label for="cable_type" class="block text-gray-700 mb-2 font-medium">Cable Type</label>
+                    <select id="cable_type" name="cable_type" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white">
+                        <option value="" disabled {% if not fmc.cable_type %}selected{% endif %}>Select Cable Type</option>
+                        <option value="UG" {% if fmc.cable_type == 'UG' %}selected{% endif %}>UG</option>
+                        <option value="Aerial" {% if fmc.cable_type == 'Aerial' %}selected{% endif %}>Aerial</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="cable_capacity" class="block text-gray-700 mb-2 font-medium">Cable Capacity</label>
+                    <input type="text" id="cable_capacity" name="cable_capacity" value="{{ fmc.cable_capacity or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="12F, 24F etc">
+                </div>
+                <div>
+                    <label for="no_of_joints" class="block text-gray-700 mb-2 font-medium">No. of Joints Used</label>
+                    <input type="number" id="no_of_joints" name="no_of_joints" min="0" value="{{ fmc.no_of_joints or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" placeholder="Enter number of joints">
+                </div>
             </div>
         </div>
-        <div class="form-section">
-            <h2>Joint Types</h2>
-            <div id="joint-types-container">
+        <!-- Joint Types -->
+        <div class="mb-8 bg-amber-50 p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-amber-800 text-center">Joint Types</h2>
+            <div id="joint_container" class="mb-4">
                 {% for jt in joint_types %}
-                    <input type="text" name="joint_type[]" value="{{ jt }}">
+                <div class="joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm">
+                    <div class="w-full">
+                        <label class="block text-gray-700 mb-2 font-medium">Joint Type {{ loop.index }}</label>
+                        <input type="text" name="joint_type[]" value="{{ jt.joint_type or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
+                    </div>
+                </div>
                 {% endfor %}
             </div>
         </div>
-        <div class="form-section">
-            <h2>Pipe Information</h2>
-            <div class="form-group">
-                <label for="pipe_used_meters">Pipe Used (Meters)</label>
-                <input type="number" step="0.01" id="pipe_used_meters" name="pipe_used_meters" value="{{ pipe_info.pipe_used_meters or '' }}">
-            </div>
-            <div class="form-group">
-                <label for="pipe_size_inches">Pipe Size (Inches)</label>
-                <input type="number" step="0.01" id="pipe_size_inches" name="pipe_size_inches" value="{{ pipe_info.pipe_size_inches or '' }}">
-            </div>
-            <div class="form-group">
-                <label for="pipe_type">Pipe Type</label>
-                <input type="text" id="pipe_type" name="pipe_type" value="{{ pipe_info.pipe_type or '' }}">
+        <!-- Pipe Information -->
+        <div class="mb-8 bg-indigo-50 p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-indigo-800 text-center">Pipe Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="pipe_used_meters" class="block text-gray-700 mb-2 font-medium">Pipe Used (Meters)</label>
+                    <input type="number" step="any" id="pipe_used_meters" name="pipe_used_meters" value="{{ pipe_info.pipe_used_meters or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" placeholder="Enter meters">
+                </div>
+                <div>
+                    <label for="pipe_size_inches" class="block text-gray-700 mb-2 font-medium">Pipe Size (Inches)</label>
+                    <input type="number" step="any" id="pipe_size_inches" name="pipe_size_inches" value="{{ pipe_info.pipe_size_inches or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" placeholder="Enter inches">
+                </div>
+                <div>
+                    <label for="pipe_type" class="block text-gray-700 mb-2 font-medium">Pipe Type</label>
+                    <input type="text" id="pipe_type" name="pipe_type" value="{{ pipe_info.pipe_type or '' }}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" placeholder="Enter pipe type">
+                </div>
             </div>
         </div>
-        <button type="submit">Update</button>
+        <div class="text-center">
+            <button type="submit" class="bg-teal-600 text-white px-6 py-3 rounded-lg hover:bg-teal-700 shadow-md transition duration-200">Update</button>
+        </div>
     </form>
+</div>
 {% endblock %}
 {% block scripts %}
-    <script>
-        const validDomains = {
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const categorySelect = document.getElementById('category');
+        const domainSelect = document.getElementById('domain');
+        const noOfJointsInput = document.getElementById('no_of_joints');
+        const jointContainer = document.getElementById('joint_container');
+
+        const domains = {
             'Longhaul': [
                 'FMC Taxila', 'FMC Fateh Jang', 'FMC Rawalpindi', 'FMC Murree',
                 'FMC Gujar Khan', 'FMC Chakwal', 'FMC Talagang', 'FMC Jhelum', 'FMC PD Khan'
@@ -87,12 +123,11 @@
             ]
         };
 
-        function updateDomainOptions() {
-            const category = document.getElementById('category').value;
-            const domainSelect = document.getElementById('domain');
-            domainSelect.innerHTML = '<option value="">Select Domain</option>';
-            if (category && validDomains[category]) {
-                validDomains[category].forEach(function(domain) {
+        // Initialize domain dropdown based on category
+        function populateDomains(category) {
+            domainSelect.innerHTML = '<option value="" disabled selected>Select Domain</option>';
+            if (category && domains[category]) {
+                domains[category].forEach(domain => {
                     const option = document.createElement('option');
                     option.value = domain;
                     option.textContent = domain;
@@ -104,21 +139,81 @@
             }
         }
 
-        document.getElementById('category').addEventListener('change', updateDomainOptions);
-        document.getElementById('no_of_joints').addEventListener('input', function() {
-            const noOfJoints = parseInt(this.value) || 0;
-            const container = document.getElementById('joint-types-container');
-            container.innerHTML = '';
-            for (let i = 0; i < noOfJoints; i++) {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.name = 'joint_type[]';
-                input.placeholder = `Joint Type ${i + 1}`;
-                container.appendChild(input);
+        // For non-master users, populate domains based on available categories
+        {% if user_role != 'master' %}
+        const userDomains = {{ user_domains|tojson }};
+        domainSelect.innerHTML = '<option value="" disabled selected>Select Domain</option>';
+        userDomains.forEach(domain => {
+            const option = document.createElement('option');
+            option.value = domain;
+            option.textContent = domain;
+            if (domain === '{{ fmc.domain }}') {
+                option.selected = true;
+            }
+            domainSelect.appendChild(option);
+        });
+        {% else %}
+        // For master users, initialize domains based on current category
+        if (categorySelect.value) {
+            populateDomains(categorySelect.value);
+        }
+        {% endif %}
+
+        // For master users, update domains on category change
+        if (categorySelect.tagName === 'SELECT' && '{{ user_role }}' === 'master') {
+            categorySelect.addEventListener('change', function () {
+                populateDomains(this.value);
+            });
+        }
+
+        // Dynamic joint type fields
+        function updateJointFields() {
+            const numJoints = parseInt(noOfJointsInput.value) || 0;
+            jointContainer.innerHTML = '';
+            for (let i = 0; i < numJoints; i++) {
+                const div = document.createElement('div');
+                div.className = 'joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm';
+                div.innerHTML = `
+                    <div class="w-full">
+                        <label class="block text-gray-700 mb-2 font-medium">Joint Type ${i + 1}</label>
+                        <input type="text" name="joint_type[]" value="${jointContainer.children[i] ? jointContainer.children[i].querySelector('input').value : ''}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
+                    </div>
+                `;
+                jointContainer.appendChild(div);
+            }
+        }
+
+        noOfJointsInput.addEventListener('input', function () {
+            // Preserve existing joint type values
+            const existingValues = Array.from(jointContainer.querySelectorAll('input[name="joint_type[]"]')).map(input => input.value);
+            jointContainer.innerHTML = '';
+            const numJoints = parseInt(this.value) || 0;
+            for (let i = 0; i < numJoints; i++) {
+                const div = document.createElement('div');
+                div.className = 'joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm';
+                div.innerHTML = `
+                    <div class="w-full">
+                        <label class="block text-gray-700 mb-2 font-medium">Joint Type ${i + 1}</label>
+                        <input type="text" name="joint_type[]" value="${existingValues[i] || ''}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
+                    </div>
+                `;
+                jointContainer.appendChild(div);
             }
         });
 
-        // Initialize domain options on page load
-        updateDomainOptions();
-    </script>
+        // Initialize joint fields on load with existing joint types
+        const existingJointTypes = {{ joint_types|tojson }};
+        existingJointTypes.forEach((jt, index) => {
+            const div = document.createElement('div');
+            div.className = 'joint_entry flex items-center mb-2 bg-white p-3 rounded-lg shadow-sm';
+            div.innerHTML = `
+                <div class="w-full">
+                    <label class="block text-gray-700 mb-2 font-medium">Joint Type ${index + 1}</label>
+                    <input type="text" name="joint_type[]" value="${jt.joint_type || ''}" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Enter joint type" required>
+                </div>
+            `;
+            jointContainer.appendChild(div);
+        });
+    });
+</script>
 {% endblock %}
