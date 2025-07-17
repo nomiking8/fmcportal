@@ -28,92 +28,99 @@
         </button>
     </div>
 
-    <!-- Export Modal -->
-    <div id="exportModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl transform transition-all duration-300">
-            <h2 class="text-xl font-bold mb-4 text-teal-800 border-b pb-2">Export FMC Data</h2>
+    <!-- Export Modal - Enhanced Design -->
+    <div id="exportModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-gradient-to-br from-white via-blue-50 to-purple-100 rounded-3xl p-8 w-full max-w-lg shadow-2xl border border-blue-100 ring-2 ring-purple-200/60 transition-all duration-300">
+            <div class="flex items-center mb-6">
+                <div class="bg-gradient-to-br from-green-400 to-green-600 rounded-full p-3 shadow-lg mr-4">
+                    <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2M5 3h14a2 2 0 012 2v7H3V5a2 2 0 012-2z"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-green-800 tracking-tight">Export FMC Data</h2>
+            </div>
             <form id="exportForm" action="{{ url_for('export_fmc') }}" method="GET" onsubmit="return validateForm()">
                 <input type="hidden" name="search" value="{{ search }}">
-                <div class="mb-4 flex flex-col sm:flex-row gap-4">
+                <div class="mb-5 flex flex-col sm:flex-row gap-4">
                     <!-- Year Selection Box -->
                     <div class="flex-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                        <div class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2 bg-gray-50">
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="year" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                                All
+                        <label class="block text-sm font-medium text-blue-700 mb-2">Year</label>
+                        <div class="max-h-40 overflow-y-auto border border-blue-200 rounded-xl p-2 bg-gradient-to-br from-blue-100 via-white to-purple-100 shadow-inner">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-blue-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="year" value="All" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-blue-200 rounded">
+                                <span class="text-blue-800 font-semibold">All</span>
                             </label>
                             {% for year in years %}
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="year" value="{{ year }}" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                                {{ year }}
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-blue-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="year" value="{{ year }}" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-blue-200 rounded">
+                                <span class="text-blue-900">{{ year }}</span>
                             </label>
                             {% endfor %}
                         </div>
                     </div>
                     <!-- Month Selection Box -->
                     <div class="flex-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Month</label>
-                        <div class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2 bg-gray-50">
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                                All
+                        <label class="block text-sm font-medium text-purple-700 mb-2">Month</label>
+                        <div class="max-h-40 overflow-y-auto border border-purple-200 rounded-xl p-2 bg-gradient-to-br from-purple-100 via-white to-blue-100 shadow-inner">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="All" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
+                                <span class="text-purple-800 font-semibold">All</span>
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="01" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="01" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 January
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="02" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="02" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 February
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="03" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="03" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 March
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="04" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="04" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 April
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="05" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="05" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 May
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="06" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="06" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 June
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="07" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="07" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 July
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="08" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="08" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 August
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="09" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="09" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 September
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="10" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="10" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 October
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="11" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="11" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 November
                             </label>
-                            <label class="flex items-center mb-1">
-                                <input type="checkbox" name="month" value="12" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                            <label class="flex items-center mb-1 rounded-lg hover:bg-purple-50 px-2 py-1 cursor-pointer transition">
+                                <input type="checkbox" name="month" value="12" class="mr-2 h-4 w-4 text-green-500 focus:ring-green-500 border-purple-200 rounded">
                                 December
                             </label>
                         </div>
                     </div>
                 </div>
-                <div id="errorMessage" class="hidden text-red-600 text-sm mb-4"></div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closeExportModal()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-200">Cancel</button>
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">Export</button>
+                <div id="errorMessage" class="hidden text-red-600 text-sm mb-4 rounded-lg px-3 py-2 bg-red-50 border border-red-200"></div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" onclick="closeExportModal()" class="bg-gray-500 text-white px-5 py-2 rounded-xl hover:bg-gray-700 transition duration-200 shadow-sm font-medium">Cancel</button>
+                    <button type="submit" class="bg-gradient-to-br from-green-500 to-green-700 text-white px-5 py-2 rounded-xl hover:from-green-600 hover:to-green-800 transition duration-200 shadow-lg font-semibold">Export</button>
                 </div>
             </form>
         </div>
