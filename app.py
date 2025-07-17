@@ -1018,18 +1018,20 @@ def export_fmc():
         from openpyxl.chart.axis import TextAxis, ChartLines
 
         search = request.args.get('search', '').strip()
-        year = request.args.get('year', '').strip()
-        month = request.args.get('month', '').strip()
+        years = request.args.getlist('year')  # Get list of selected years
+        months = request.args.getlist('month')  # Get list of selected months
         query = FMCInformation.query
         query = apply_data_filter(query)
 
         if search:
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
-        if year and year != 'All':
-            query = query.filter(db.extract('year', FMCInformation.created_at) == int(year))
-        if month and month != 'All':
-            query = query.filter(db.func.to_char(FMCInformation.created_at, 'MM') == month.zfill(2))
+        if years and 'All' not in years:
+            years = [int(year) for year in years]  # Convert to integers
+            query = query.filter(db.extract('year', FMCInformation.created_at).in_(years))
+        if months and 'All' not in months:
+            months = [month.zfill(2) for month in months]  # Ensure two-digit format
+            query = query.filter(db.func.to_char(FMCInformation.created_at, 'MM').in_(months))
 
         data = query.order_by(FMCInformation.created_at.desc()).all()
         pkt_tz = pytz.timezone('Asia/Karachi')
@@ -1082,10 +1084,10 @@ def export_fmc():
 
             # Total Pipe Used
             pipe_query = apply_data_filter(db.session.query(PipeInformation).join(FMCInformation))
-            if year and year != 'All':
-                pipe_query = pipe_query.filter(db.extract('year', FMCInformation.created_at) == int(year))
-            if month and month != 'All':
-                pipe_query = pipe_query.filter(db.func.to_char(FMCInformation.created_at, 'MM') == month.zfill(2))
+            if years and 'All' not in years:
+                pipe_query = pipe_query.filter(db.extract('year', FMCInformation.created_at).in_(years))
+            if months and 'All' not in months:
+                pipe_query = pipe_query.filter(db.func.to_char(FMCInformation.created_at, 'MM').in_(months))
             total_pipe_used = pipe_query.with_entities(db.func.coalesce(db.func.sum(PipeInformation.pipe_used_meters), 0)).scalar()
 
             # Cable Type Counts
@@ -1485,11 +1487,13 @@ def export_fmc():
         output.seek(0)
 
         # Create response
+        filename_years = 'All' if not years or 'All' in years else '-'.join(years)
+        filename_months = 'All' if not months or 'All' in months else '-'.join(months)
         response = make_response(send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name=f'fmc_data_{year or "All"}_{month or "All"}.xlsx'
+            download_name=f'fmc_data_{filename_years}_{filename_months}.xlsx'
         ))
 
         # Preserve auth_token
@@ -1504,7 +1508,7 @@ def export_fmc():
                 max_age=int(timedelta(hours=24).total_seconds())
             )
 
-        logger.info(f"Export successful for user {session.get('username')}, Year={year or 'All'}, Month={month or 'All'}")
+        logger.info(f"Export successful for user {session.get('username')}, Years={filename_years}, Months={filename_months}")
         return response
         
     except Exception as e:
