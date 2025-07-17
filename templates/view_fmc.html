@@ -32,80 +32,85 @@
     <div id="exportModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl transform transition-all duration-300">
             <h2 class="text-xl font-bold mb-4 text-teal-800 border-b pb-2">Export FMC Data</h2>
-            <form id="exportForm" action="{{ url_for('export_fmc') }}" method="GET">
+            <form id="exportForm" action="{{ url_for('export_fmc') }}" method="GET" onsubmit="return validateForm()">
                 <input type="hidden" name="search" value="{{ search }}">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label class="flex items-center">
-                            <input type="checkbox" name="year" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            All
-                        </label>
-                        {% for year in years %}
-                        <label class="flex items-center">
-                            <input type="checkbox" name="year" value="{{ year }}" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            {{ year }}
-                        </label>
-                        {% endfor %}
+                <div class="mb-4 flex flex-col sm:flex-row gap-4">
+                    <!-- Year Selection Box -->
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                        <div class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2 bg-gray-50">
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="year" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                All
+                            </label>
+                            {% for year in years %}
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="year" value="{{ year }}" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                {{ year }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <!-- Month Selection Box -->
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                        <div class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2 bg-gray-50">
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                All
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="01" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                January
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="02" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                February
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="03" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                March
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="04" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                April
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="05" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                May
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="06" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                June
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="07" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                July
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="08" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                August
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="09" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                September
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="10" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                October
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="11" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                November
+                            </label>
+                            <label class="flex items-center mb-1">
+                                <input type="checkbox" name="month" value="12" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                                December
+                            </label>
+                        </div>
                     </div>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Month</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="All" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            All
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="01" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            January
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="02" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            February
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="03" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            March
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="04" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            April
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="05" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            May
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="06" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            June
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="07" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            July
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="08" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            August
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="09" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            September
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="10" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            October
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="11" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            November
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" name="month" value="12" class="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
-                            December
-                        </label>
-                    </div>
-                </div>
+                <div id="errorMessage" class="hidden text-red-600 text-sm mb-4"></div>
                 <div class="flex justify-end gap-2">
                     <button type="button" onclick="closeExportModal()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-200">Cancel</button>
                     <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">Export</button>
@@ -203,7 +208,7 @@
     </div>
 </div>
 
-<!-- JavaScript for Search, Details, and Export Modal -->
+<!-- JavaScript for Search, Details, Export Modal, and Validation -->
 <script>
 function searchTable() {
     let input = document.getElementById("searchInput").value.toLowerCase();
@@ -263,10 +268,27 @@ function closeModal() {
 
 function showExportModal() {
     document.getElementById('exportModal').classList.remove('hidden');
+    document.getElementById('errorMessage').classList.add('hidden'); // Reset error message
 }
 
 function closeExportModal() {
     document.getElementById('exportModal').classList.add('hidden');
+    document.getElementById('errorMessage').classList.add('hidden'); // Reset error message
+}
+
+function validateForm() {
+    const yearCheckboxes = document.querySelectorAll('input[name="year"]:checked');
+    const monthCheckboxes = document.querySelectorAll('input[name="month"]:checked');
+    const errorMessage = document.getElementById('errorMessage');
+
+    if (yearCheckboxes.length === 0 || monthCheckboxes.length === 0) {
+        errorMessage.textContent = 'Please select at least one year and one month.';
+        errorMessage.classList.remove('hidden');
+        return false;
+    }
+
+    errorMessage.classList.add('hidden');
+    return true;
 }
 </script>
 {% endblock %}

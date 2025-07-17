@@ -1027,7 +1027,7 @@ def export_fmc():
             query = query.filter(FMCInformation.cable_cut_noc_id.ilike(f'%{search}%'))
 
         if years and 'All' not in years:
-            years = [int(year) for year in years]  # Convert to integers
+            years = [int(year) for year in years]  # Convert to integers for query
             query = query.filter(db.extract('year', FMCInformation.created_at).in_(years))
         if months and 'All' not in months:
             months = [month.zfill(2) for month in months]  # Ensure two-digit format
@@ -1487,7 +1487,7 @@ def export_fmc():
         output.seek(0)
 
         # Create response
-        filename_years = 'All' if not years or 'All' in years else '-'.join(years)
+        filename_years = 'All' if not years or 'All' in years else '-'.join(str(year) for year in years)
         filename_months = 'All' if not months or 'All' in months else '-'.join(months)
         response = make_response(send_file(
             output,
